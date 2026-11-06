@@ -3,7 +3,7 @@
 ## Trust boundaries
 
 1. Browser: Supabase publishable key only. It receives no service-role or signing secret.
-2. Next.js server components: cookie-based Supabase SSR client. Owner pages call `auth.getUser()` and check `profiles.role='owner' AND status='active'`.
+2. Next.js server components: cookie-based Supabase SSR client. The Owner enters an 8–12 digit PIN; a server action combines it with server-only `ADMIN_OWNER_EMAIL` for Supabase Auth password sign-in, then checks `profiles.role='owner' AND status='active'`. The PIN and email identifier are never exposed to browser code.
 3. Supabase Edge Functions: authenticate the bearer JWT, load role/status from the database using the service role, validate every input, rate-limit, and audit owner mutations.
 4. Database: RLS enabled for all application tables. Service-role access is limited to Edge Functions. Published version rows are immutable via trigger and unique `(tool_id, version)`.
 5. Android APK: contains only the public verification key and a local action interpreter. It never receives the private signing key or a service credential.
@@ -18,7 +18,7 @@ A recipe is declarative JSON. The APK maps each allowed action ID to a native Ko
 
 ## Operational controls before launch
 
-- Enable owner MFA and use a dedicated owner account.
+- Use a dedicated Owner account, a random 8–12 digit PIN with Supabase Auth rate limits enabled, and protect `ADMIN_OWNER_EMAIL` as a server-only setting.
 - Configure SMTP, redirect allowlists, project auth rate limits and Edge Function rate limits.
 - Rotate keys if exposed; never commit `.env` or private key material.
 - Back up the RSA public key and define a signed key-rotation plan.
