@@ -31,7 +31,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: mahimahfud-ui/Mahi-Repair
-          ref: agent/admin-cloud-run
+          ref: agent/final-integration-qa
           path: Mahi-Repair-source
           token: ${{ github.token }}
           persist-credentials: false
@@ -110,5 +110,11 @@ jobs:
         run: npm run lint
       - name: Unit tests
         run: npm run test
+      - name: Supabase shared Deno contract tests
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Verify report idempotency and step authorization
+        run: deno test supabase/functions/_shared/run_report_test.ts
       - name: Production build
         run: npm run build
