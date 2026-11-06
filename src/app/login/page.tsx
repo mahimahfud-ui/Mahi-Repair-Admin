@@ -35,19 +35,10 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
   const requestInFlight = useRef(false);
 
   useEffect(() => {
     const syncCooldown = () => setCooldownSeconds(getRemainingCooldownSeconds());
-    const params = new URLSearchParams(window.location.search);
-
-    if (params.get('denied') === '1') {
-      setNotice('This account does not have active Owner access. Contact the project owner.');
-    } else if (params.get('error') === 'callback') {
-      setNotice('The sign-in link is missing or invalid. Request a new link and open it on this device.');
-    }
-
     syncCooldown();
     window.addEventListener('storage', syncCooldown);
     const interval = window.setInterval(syncCooldown, 1000);
@@ -95,7 +86,6 @@ export default function LoginPage() {
     requestInFlight.current = true;
     setBusy(true);
     setError('');
-    setNotice('');
     setSent(false);
 
     try {
@@ -161,12 +151,6 @@ export default function LoginPage() {
             Use the owner email already registered in Supabase. Member accounts cannot enter this console.
           </p>
         </div>
-
-        {notice && (
-          <p role="status" className="mb-4 rounded-xl border border-amber-900 bg-amber-950/30 p-3 text-sm text-amber-200">
-            {notice}
-          </p>
-        )}
 
         {sent && (
           <p role="status" aria-live="polite" className="mb-4 rounded-xl border border-emerald-900 bg-emerald-950/30 p-4 text-sm text-emerald-200">
