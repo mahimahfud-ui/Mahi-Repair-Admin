@@ -1,5 +1,11 @@
 name: Inspect Admin ZIP Source
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - mahi-repair-admin.zip
+      - .github/workflows/inspect-admin-source.yml
   push:
     branches:
       - integration/connect-shared-supabase
