@@ -6,6 +6,7 @@ on:
     paths:
       - mahi-repair-admin.zip
       - .github/workflows/inspect-admin-source.yml
+      - tsconfig.json
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -70,6 +71,16 @@ jobs:
           rm -f package.json package-lock.json next.config.mjs next.config.ts next-env.d.ts tsconfig.json postcss.config.mjs tailwind.config.ts middleware.ts proxy.ts Dockerfile .dockerignore .env.example .nvmrc
           cp -a "$SOURCE/." .
           rm -rf Mahi-Repair-source
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path("tsconfig.json")
+          data = json.loads(path.read_text())
+          excludes = data.setdefault("exclude", [])
+          if "design-reference" not in excludes:
+              excludes.append("design-reference")
+          path.write_text(json.dumps(data, indent=2) + "\n")
+          PY
           mkdir -p .github/workflows
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
