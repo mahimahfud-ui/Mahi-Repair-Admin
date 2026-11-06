@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { RepairRecipeSchema } from '../src/lib/recipe/catalog';
 import { canonicalJson } from '../src/lib/recipe/canonical';
 
-const fixtureUrl = new URL('../../contract-tests/repair-recipe-v1.json', import.meta.url);
+const fixtureUrl = new URL('../contract-tests/repair-recipe-v1.json', import.meta.url);
 const fixture = JSON.parse(readFileSync(fixtureUrl, 'utf8')) as unknown;
 
 describe('shared Run Repair v1 contract', () => {
