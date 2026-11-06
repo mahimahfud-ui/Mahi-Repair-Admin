@@ -95,10 +95,10 @@ The checked-in migrations are applied in timestamp order:
 - 20261105171141_202611050001_initial_schema.sql
 - 20261105171330_20261105180000_harden_rls_grants_and_indexes.sql
 - 20261105171827_20261105183000_deny_browser_rate_limit_access.sql
-- 20261106120000_private_realtime_catalog_broadcast.sql
-- 20261106153000_backend_report_idempotency_and_atomic_catalog.sql
-- 20261106160000_transactional_admin_mutations_audit.sql
-- 20261106170000_atomic_member_catalog_and_device_registration.sql
+- 20261106170418_private_realtime_catalog_broadcast.sql
+- 20261106170438_backend_report_idempotency_and_atomic_catalog.sql
+- 20261106170450_transactional_admin_mutations_audit.sql
+- 20261106170509_atomic_member_catalog_and_device_registration.sql
 
 Review the SQL and target project before applying anything. The following is a manual operator procedure, not an automated GitHub workflow:
 

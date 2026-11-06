@@ -51,7 +51,7 @@ The APK artifact is a debug build using an ephemeral debug keystore. It is not a
 - [ ] Configure and verify a production custom SMTP provider, sender-domain SPF/DKIM/DMARC, inbox delivery and provider bounce logs. Supabase Auth logs currently show repeated `429 over_email_send_rate_limit` responses; Dashboard SMTP settings are not inspectable through the connected Supabase controls.
 - [ ] Keep the Supabase Magic Link/OTP request cooldown at 60 seconds and configure the total email quota to remain within the verified SMTP provider limit.
 - [ ] Verify the owner Auth account and manually bootstrap only that account to owner; new profiles intentionally default to member.
-- [ ] Apply the pending migrations in order: `20261106120000_private_realtime_catalog_broadcast.sql`, `20261106153000_backend_report_idempotency_and_atomic_catalog.sql`, `20261106160000_transactional_admin_mutations_audit.sql`, and `20261106170000_atomic_member_catalog_and_device_registration.sql`.
+- [ ] Apply the pending migrations in order: `20261106170418_private_realtime_catalog_broadcast.sql`, `20261106170438_backend_report_idempotency_and_atomic_catalog.sql`, `20261106170450_transactional_admin_mutations_audit.sql`, and `20261106170509_atomic_member_catalog_and_device_registration.sql`.
 - [ ] Deploy all 15 latest Edge Functions with JWT verification enabled, including the run-idempotent report, atomic catalog/device RPC clients and owner-checked transactional admin functions.
 - [ ] Disable Supabase Realtime Allow public access and verify private realtime.messages RLS against owner/member/own-device/revoked-device cases.
 - [ ] Deploy the PR-branch Edge Function updates with JWT verification enabled through the protected workflow.
