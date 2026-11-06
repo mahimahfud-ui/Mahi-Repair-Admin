@@ -1,44 +1,73 @@
 # Mahi Repair Cloud
 
-Private owner control center and signed recipe distribution backend for a companion Android repair app.
+Private Owner control center and signed recipe distribution backend for the companion Mahi Repair Android app.
 
-## What this repository contains
+## Repository layout
 
-- Next.js 16 App Router + TypeScript + Tailwind owner console
-- Supabase SSR authentication and server-side owner authorization
-- Supabase PostgreSQL migration with RLS, owner/member roles, devices, tools, immutable versions, assignments, runs, audit records and rate limits
-- Supabase Edge Functions for invitations, member management, tool drafts, publishing, disabling, unpublishing/archiving, assignment, signed delivery, device registration, run submission and analytics
-- JSON Repair Recipe DSL schema and validation
-- RSA-SHA256 detached signature implementation
-- Android API and security contract documentation
-- Kotlin RSA verification example for the companion APK
+This is a standalone Next.js application. The application root is the repository root; package.json, package-lock.json, src/, supabase/, schemas/, tests/ and docs/ are all at the top level. There is no admin-panel/ subdirectory.
+
+- Next.js 16 App Router, React 19, TypeScript and Tailwind
+- Supabase SSR authentication and server-side active-Owner authorization
+- PostgreSQL schema, RLS policies and manually managed migrations
+- Supabase Edge Functions for Owner administration and Android member/device operations
+- Declarative Repair Recipe v1 schema, canonical JSON and RSA-SHA256 signing
+- Android API contract and Kotlin signature-verification example
 
 ## Quick start
 
-Read [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), configure `.env.local` from `.env.example`, apply the migration, bootstrap the owner manually and deploy Edge Functions. See [docs/BUILD_STATUS.md](docs/BUILD_STATUS.md) for the exact checks run and the checks still blocked by missing dependencies/credentials.
+Use Node.js 22.23.4 (see .nvmrc and the package.json engines field).
 
-```bash
-npm install
+~~~bash
+npm ci
+cp .env.example .env.local
 npm run dev
-```
+~~~
 
-## Important boundaries
+On Windows PowerShell, use Copy-Item .env.example .env.local for the copy step.
 
-This web repository does not contain an Android executor. The Android APK must implement every supported action natively and must verify the detached RSA-SHA256 signature over the exact `signed_payload` UTF-8 bytes before parsing. It must reject all unknown actions and must never run downloaded code.
+Set only these browser-safe values in .env.local:
 
-Do not expose the Supabase service-role key or RSA private key to browsers, Android or source control. The app is not production-ready until the items in [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md) have been verified in the target Supabase and Android environments.
+~~~env
+NEXT_PUBLIC_SUPABASE_URL=https://shwqsljicmhflnvjqjah.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=YOUR_PROJECT_PUBLISHABLE_KEY
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+~~~
 
-## Shared Android app integration
+Run the local checks from the repository root:
 
-This Admin Control Center and the Android client in [`mahimahfud-ui/Mahi-Repair`](https://github.com/mahimahfud-ui/Mahi-Repair) use the same Supabase project: `shwqsljicmhflnvjqjah`. They are separate clients; the APK does not embed Admin routes, Owner credentials, service-role credentials or the recipe-signing private key.
+~~~bash
+npm run check:scaffold
+npm run typecheck
+npm run lint
+npm run test
+npm run build
+~~~
 
-- **Android member path:** Supabase Auth → `register-device` → `get-my-repair-tools` / `get-signed-repair-tool` → local signature verification and native allowlisted execution → `submit-repair-run`.
-- **Admin Owner path:** Supabase email magic link → server-side active Owner check → RLS-protected reads and allowlisted Owner-only Edge Function mutations.
-- **Admin operations:** member invitations/status, device revoke/restore, recipe draft/edit, validation, signed publication, tool state/assignment, analytics, audit and execution logs.
-- **Report delivery:** Android persists report payloads in its Room outbox and retries using the same `run_id`. The Edge Function treats identical submissions as duplicates and rejects altered/reused IDs.
-- **Secrets:** the Admin website and Android client use public Supabase configuration only. The service-role key and RSA signing private key stay in Supabase Edge Function secrets.
+The application starts with npm run start after a successful production build.
 
-See [Android API contract](docs/ANDROID_API_CONTRACT.md), [security model](docs/SECURITY_MODEL.md) and [deployment guide](docs/DEPLOYMENT.md).
+## Shared Android backend
 
-The imported Claude UI archive is retained under `design-reference/` as a design reference only. It is not the active runtime and its mock-data/login code is not used for authentication or production data.
+The Admin website and Android client in [mahimahfud-ui/Mahi-Repair](https://github.com/mahimahfud-ui/Mahi-Repair) are separate clients of the same Supabase project (shwqsljicmhflnvjqjah). The APK does not embed Admin routes, Owner credentials, the service-role key or the recipe-signing private key.
 
+- Owner web path: Supabase email magic link → server-side active Owner check → RLS-protected reads and allowlisted Owner-only Edge Function mutations.
+- Android member path: Supabase Auth → device registration → authorized published-recipe retrieval → on-device RSA signature verification → native allowlisted action execution → run-report submission.
+- Admin operations: member invitations/status, device revoke/restore, recipe drafting/validation/publication, tool state and assignment, analytics, audit records and execution logs.
+- Report retries: Android reuses the same run_id; an identical report is accepted as an idempotent duplicate, while altered content or a different member reusing the UUID is rejected.
+
+See [Android API contract](docs/ANDROID_API_CONTRACT.md), [security model](docs/SECURITY_MODEL.md) and [manual deployment guide](docs/DEPLOYMENT.md).
+
+## Security boundaries
+
+Browser and Android clients use only the Supabase URL and publishable key. The service-role key is used only inside Supabase Edge Functions. The RSA-3072 PKCS#8 signing private key must remain in Supabase Edge Function Secrets; only the matching public key belongs in Android build configuration.
+
+Published versions and audit records are append-only. Authenticated browser database access is read-only and row-gated by RLS. All privileged mutations are routed through authenticated Edge Functions. Recipes are declarative JSON, not executable code: the Android app must reject unknown actions and execute only native action IDs already compiled into the APK.
+
+## CI and source synchronization
+
+The pull-request workflow verifies the complete application committed in this repository with read-only GitHub permissions. It does not sync files from another repository, create commits, push branches or use deployment secrets. There is no automatic source-sync workflow; changes originating in the Android repository must be copied into this repository through a separately reviewed code change.
+
+The CI workflow is not a deployment workflow. No Supabase migrations, Edge Functions, secrets, website hosting service or production environment are changed by CI.
+
+## Design reference
+
+The imported UI archive remains under design-reference/ for reference only. Its mock login and mock data are not part of the active Next.js runtime.

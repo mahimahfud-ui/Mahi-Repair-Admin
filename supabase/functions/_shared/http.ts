@@ -1,26 +1,66 @@
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 
+export function normalizeAdminOrigin(configured: string | undefined): string | null {
+  if (!configured) return null;
+  try {
+    const parsed = new URL(configured);
+    if (
+      parsed.protocol !== 'https:' ||
+      parsed.origin !== configured ||
+      parsed.username !== '' ||
+      parsed.password !== ''
+    ) return null;
+    return parsed.origin;
+  } catch {
+    return null;
+  }
+}
+
+export function isAllowedCorsOrigin(origin: string | null, configured: string | undefined): boolean {
+  if (!origin) return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(origin);
+  } catch {
+    return false;
+  }
+  if (parsed.origin !== origin || parsed.username !== '' || parsed.password !== '') return false;
+
+  const adminOrigin = normalizeAdminOrigin(configured);
+  if (adminOrigin && origin === adminOrigin) return true;
+
+  return parsed.protocol === 'http:' &&
+    ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname);
+}
+
+export function requireAdminOrigin(): string {
+  const configured = Deno.env.get('ADMIN_ORIGIN');
+  const origin = normalizeAdminOrigin(configured);
+  if (!origin) {
+    throw Object.assign(
+      new Error('ADMIN_ORIGIN must be a canonical HTTPS origin without a path or trailing slash.'),
+      { status: 500 },
+    );
+  }
+  return origin;
+}
+
+export function isSameAdminOriginRedirect(candidate: string, adminOrigin: string): boolean {
+  try {
+    const parsed = new URL(candidate);
+    return parsed.protocol === 'https:' &&
+      parsed.origin === adminOrigin &&
+      parsed.username === '' &&
+      parsed.password === '';
+  } catch {
+    return false;
+  }
+}
+
 export const corsHeaders = (request: Request) => {
   const origin = request.headers.get('origin');
   const configured = Deno.env.get('ADMIN_ORIGIN');
-  let allowed = false;
-
-  if (origin && configured) {
-    try {
-      allowed = new URL(origin).origin === new URL(configured).origin;
-    } catch {
-      allowed = false;
-    }
-  }
-
-  if (origin && !allowed) {
-    try {
-      const url = new URL(origin);
-      allowed = url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
-    } catch {
-      allowed = false;
-    }
-  }
+  const allowed = isAllowedCorsOrigin(origin, configured);
 
   const headers: Record<string, string> = {
     Vary: 'Origin',
@@ -44,7 +84,7 @@ export function preflight(request: Request) {
 
 export function env(name: string) {
   const value = Deno.env.get(name);
-  if (!value) throw new Error(`Missing secret: ${name}`);
+  if (!value) throw new Error('Missing secret: ' + name);
   return value;
 }
 
@@ -115,7 +155,7 @@ export async function audit(
     target_id: targetId,
     details,
   });
-  if (error) throw new Error(`Audit write failed: ${error.message}`);
+  if (error) throw new Error('Audit write failed: ' + error.message);
 }
 
 export async function handleError(request: Request, error: unknown) {

@@ -1,105 +1,35 @@
-name: Connect Mahi Repair Admin Backend
+name: Mahi Repair Admin CI
 on:
-  push:
-    branches:
-      - integration/connect-shared-supabase
-    paths:
-      - mahi-repair-admin.zip
-      - .github/workflows/inspect-admin-source.yml
-      - tsconfig.json
-      - contract-tests/repair-recipe-v1.json
   pull_request:
     branches: [main]
-  workflow_dispatch:
+  push:
+    branches: [main]
 permissions:
-  contents: write
+  contents: read
+concurrency:
+  group: admin-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
-  integrate-and-verify:
+  verify:
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    permissions:
+      contents: read
     env:
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
       NEXT_PUBLIC_APP_URL: http://localhost:3000
     steps:
-      - name: Checkout Admin repository
+      - name: Checkout this repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
-          persist-credentials: true
-      - name: Checkout existing Owner-secured Mahi Repair Admin source
-        uses: actions/checkout@v4
-        with:
-          repository: mahimahfud-ui/Mahi-Repair
-          ref: agent/final-integration-qa
-          path: Mahi-Repair-source
-          token: ${{ github.token }}
           persist-credentials: false
-      - name: Preserve Claude UI source and sync the existing secured Admin implementation
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p design-reference
-          cp mahi-repair-admin.zip design-reference/mahi-repair-admin.zip
-          python3 - <<'PY'
-          import pathlib, zipfile, shutil, os
-          archive = pathlib.Path("mahi-repair-admin.zip")
-          tmp = pathlib.Path(os.environ["RUNNER_TEMP"]) / "mahi-repair-ui"
-          tmp.mkdir(parents=True, exist_ok=True)
-          with zipfile.ZipFile(archive) as zf:
-              for info in zf.infolist():
-                  p = pathlib.PurePosixPath(info.filename)
-                  if p.is_absolute() or ".." in p.parts:
-                      raise SystemExit("Unsafe path inside supplied ZIP")
-                  if (info.external_attr >> 16) & 0o170000 == 0o120000:
-                      raise SystemExit("Symlinks inside supplied ZIP are not accepted")
-              zf.extractall(tmp)
-          manifests = [p for p in tmp.rglob("package.json") if "node_modules" not in p.parts]
-          if len(manifests) != 1:
-              raise SystemExit(f"Expected one frontend package.json, found {len(manifests)}")
-          source_ui = manifests[0].parent
-          destination = pathlib.Path("design-reference/ui-only")
-          if destination.exists():
-              shutil.rmtree(destination)
-          shutil.copytree(source_ui, destination)
-          print("Preserved frontend-only Claude project at design-reference/ui-only")
-          PY
-          SOURCE="Mahi-Repair-source/admin-panel"
-          test -f "$SOURCE/package.json"
-          test -f "$SOURCE/src/app/actions.ts"
-          compgen -G "$SOURCE/supabase/migrations/*.sql" >/dev/null
-          rm -rf app components lib src public scripts schemas supabase android-contract docs
-          rm -f package.json package-lock.json next.config.mjs next.config.ts next-env.d.ts tsconfig.json postcss.config.mjs tailwind.config.ts middleware.ts proxy.ts Dockerfile .dockerignore .env.example .nvmrc
-          cp -a "$SOURCE/." .
-          mkdir -p contract-tests
-          cp Mahi-Repair-source/contract-tests/repair-recipe-v1.json contract-tests/repair-recipe-v1.json
-          rm -rf Mahi-Repair-source
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          path = Path("tsconfig.json")
-          data = json.loads(path.read_text())
-          excludes = data.setdefault("exclude", [])
-          if "design-reference" not in excludes:
-              excludes.append("design-reference")
-          path.write_text(json.dumps(data, indent=2) + "\n")
-          test_file = Path("tests/repair-recipe-contract.test.ts")
-          test_source = test_file.read_text()
-          test_source = test_source.replace("../../contract-tests/repair-recipe-v1.json", "../contract-tests/repair-recipe-v1.json")
-          test_file.write_text(test_source)
-          PY
-          mkdir -p .github/workflows
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          if ! git diff --cached --quiet; then
-            git commit -m "feat(admin): sync Owner-secured Supabase Control Center"
-            git push origin "HEAD:${GITHUB_REF_NAME}"
-          fi
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22.23.4
+          cache: npm
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
       - name: Scaffold and security checks
@@ -108,13 +38,13 @@ jobs:
         run: npm run typecheck
       - name: Lint
         run: npm run lint
-      - name: Unit tests
+      - name: Unit and contract tests
         run: npm run test
-      - name: Supabase shared Deno contract tests
+      - name: Set up Deno
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - name: Verify report idempotency and step authorization
-        run: deno test supabase/functions/_shared/run_report_test.ts
+      - name: Supabase shared Deno contract and security tests
+        run: deno test --allow-read=contract-tests/repair-recipe-v1.json supabase/functions/_shared/
       - name: Production build
         run: npm run build
