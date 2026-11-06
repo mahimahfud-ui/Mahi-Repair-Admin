@@ -7,6 +7,7 @@ on:
       - mahi-repair-admin.zip
       - .github/workflows/inspect-admin-source.yml
       - tsconfig.json
+      - contract-tests/repair-recipe-v1.json
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -70,6 +71,8 @@ jobs:
           rm -rf app components lib src public scripts schemas supabase android-contract docs
           rm -f package.json package-lock.json next.config.mjs next.config.ts next-env.d.ts tsconfig.json postcss.config.mjs tailwind.config.ts middleware.ts proxy.ts Dockerfile .dockerignore .env.example .nvmrc
           cp -a "$SOURCE/." .
+          mkdir -p contract-tests
+          cp Mahi-Repair-source/contract-tests/repair-recipe-v1.json contract-tests/repair-recipe-v1.json
           rm -rf Mahi-Repair-source
           python3 - <<'PY'
           import json
