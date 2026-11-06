@@ -25,12 +25,12 @@ npm run dev
 
 On Windows PowerShell, use Copy-Item .env.example .env.local for the copy step.
 
-Set only these browser-safe values in .env.local:
+Set these values in .env.local. The Owner Auth email is server-only and must never use the `NEXT_PUBLIC_` prefix:
 
 ~~~env
 NEXT_PUBLIC_SUPABASE_URL=https://shwqsljicmhflnvjqjah.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=YOUR_PROJECT_PUBLISHABLE_KEY
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+ADMIN_OWNER_EMAIL=owner@example.com
 ~~~
 
 Run the local checks from the repository root:
@@ -49,8 +49,8 @@ The application starts with npm run start after a successful production build.
 
 The Admin website and Android client in [mahimahfud-ui/Mahi-Repair](https://github.com/mahimahfud-ui/Mahi-Repair) are separate clients of the same Supabase project (shwqsljicmhflnvjqjah). The APK does not embed Admin routes, Owner credentials, the service-role key or the recipe-signing private key.
 
-- Owner web path: Supabase email magic link → server-side active Owner check → RLS-protected reads and allowlisted Owner-only Edge Function mutations.
-- Android member path: Supabase Auth → device registration → authorized published-recipe retrieval → on-device RSA signature verification → native allowlisted action execution → run-report submission.
+- Owner web path: the Owner enters an 8–12 digit PIN; a server action authenticates against the existing Supabase Auth Owner account using the server-only `ADMIN_OWNER_EMAIL`, then verifies `profiles.role='owner' AND status='active'`. The Owner login page does not request or send an email, OTP or Magic Link.
+- Android member path: Supabase email OTP → device registration → authorized published-recipe retrieval → on-device RSA signature verification → native allowlisted action execution → run-report submission. Member invitations and Android OTP remain separate member-onboarding email flows.
 - Admin operations: member invitations/status, device revoke/restore, recipe drafting/validation/publication, tool state and assignment, analytics, audit records and execution logs.
 - Report retries: Android reuses the same run_id as the `repair_runs.id` primary key; a SHA-256 fingerprint makes identical retries idempotent and rejects altered content or a different member reusing the UUID.
 - Live updates: private Realtime broadcasts send only opaque event IDs to each authorized Android device and the active Owner Admin Console. Clients refetch through authenticated server endpoints; Realtime payloads never contain recipes or authorization decisions.
