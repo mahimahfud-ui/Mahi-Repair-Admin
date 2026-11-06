@@ -25,6 +25,14 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: true
+      - name: Checkout existing Owner-secured Mahi Repair Admin source
+        uses: actions/checkout@v4
+        with:
+          repository: mahimahfud-ui/Mahi-Repair
+          ref: agent/admin-cloud-run
+          path: Mahi-Repair-source
+          token: ${{ github.token }}
+          persist-credentials: false
       - name: Preserve Claude UI source and sync the existing secured Admin implementation
         shell: bash
         run: |
@@ -54,8 +62,7 @@ jobs:
           shutil.copytree(source_ui, destination)
           print("Preserved frontend-only Claude project at design-reference/ui-only")
           PY
-          git clone --depth 1 --branch agent/admin-cloud-run https://github.com/mahimahfud-ui/Mahi-Repair.git "$RUNNER_TEMP/mahi-repair-source"
-          SOURCE="$RUNNER_TEMP/mahi-repair-source/admin-panel"
+          SOURCE="Mahi-Repair-source/admin-panel"
           test -f "$SOURCE/package.json"
           test -f "$SOURCE/src/app/actions.ts"
           test -f "$SOURCE/supabase/migrations/202611050001_initial_schema.sql"
