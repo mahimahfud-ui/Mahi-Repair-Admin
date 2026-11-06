@@ -2,15 +2,15 @@
 
 This checklist separates code/CI evidence from checks that must be performed against the actual production Render, Supabase and Android environments. A passing CI workflow is not a production acceptance test.
 
-## Implemented in the branch and covered by current-head CI
+## Implemented in the branch (CI re-verification required after the PIN change)
 
 - [x] Separate native Android client, private Next.js Admin Panel and Supabase backend.
 - [x] Minimal Android home with one RUN REPAIR action and a published-tool picker after the user taps it.
 - [x] Invite-only email OTP auth implementation with account creation disabled.
-- [x] Admin login UI blocks concurrent Magic Link submissions and applies a persistent 60-second cooldown across reloads/tabs.
-- [x] Magic Link redirect is built from the configured Admin origin, rejects insecure production origins, and no longer trusts the browser Host/location origin.
-- [x] Provider rate-limit, SMTP-not-authorized and temporary email-service errors have safe user-facing messages; raw provider errors are not shown.
-- [x] Magic Link helper tests cover production redirect validation, cooldown constant and Auth error mapping.
+- [x] Owner login UI accepts only an 8–12 digit numeric PIN; no Owner email/OTP/Magic Link request is exposed in the browser.
+- [x] Server action authenticates the PIN against the existing Owner Supabase Auth account using server-only `ADMIN_OWNER_EMAIL`, then requires an active Owner profile and signs out any non-Owner session.
+- [x] PIN validation and server-only Owner Auth identifier validation have unit-test coverage; rate-limited password sign-in receives safe user-facing feedback.
+- [x] Owner PIN tests cover 8–12 digit values, leading zeroes, invalid PINs and malformed/oversized server-side Owner identifiers.
 - [x] Android Keystore-backed AES-GCM session storage and serialized refresh-token rotation implementation.
 - [x] Server-issued device identity and server-side member/device authorization implementation.
 - [x] Canonical recipe v1 schema, strict parameter validation and shared contract fixtures.
@@ -30,7 +30,7 @@ This checklist separates code/CI evidence from checks that must be performed aga
 - [x] Node.js 22.23.4 pinned across Render, Admin Panel and Admin Panel CI.
 - [x] Protected production workflow source for migration preview/apply and JWT-verified deployment of all 15 Edge Functions.
 
-Current-head commit: dd7c922bf5533c34a424d8d7994f29d2d0fb0f82.
+Previous verified CI head before the PIN change: `9e627816446889909c1c57475082e2525a902847`. Re-run the PR workflow on the updated head before treating the new Owner PIN code as verified.
 
 Evidence:
 - [Android CI](https://github.com/mahimahfud-ui/Mahi-Repair/actions/runs/42167251879)
@@ -47,9 +47,9 @@ The APK artifact is a debug build using an ephemeral debug keystore. It is not a
 - [ ] Generate a real RSA-3072 key pair. Add only the PKCS#8 private key directly to Supabase Edge Function Secrets as RECIPE_SIGNING_PRIVATE_KEY_PEM; configure the matching X.509 public PEM in the Android release build. The checked-in public-key value remains a placeholder.
 - [ ] Configure the protected GitHub supabase-production environment with a required reviewer, secrets SUPABASE_ACCESS_TOKEN and SUPABASE_DB_PASSWORD, and variable ADMIN_ORIGIN.
 - [ ] Verify the private signing secret exists in Supabase before deployment without logging its value.
-- [ ] Configure Supabase Auth Site URL as `https://mahi-repair-admin.onrender.com` and allow the exact `https://mahi-repair-admin.onrender.com/auth/callback` redirect; keep localhost only for development.
-- [ ] Configure and verify a production custom SMTP provider, sender-domain SPF/DKIM/DMARC, inbox delivery and provider bounce logs. Supabase Auth logs currently show repeated `429 over_email_send_rate_limit` responses; Dashboard SMTP settings are not inspectable through the connected Supabase controls.
-- [ ] Keep the Supabase Magic Link/OTP request cooldown at 60 seconds and configure the total email quota to remain within the verified SMTP provider limit.
+- [ ] Configure the Admin host's server-only `ADMIN_OWNER_EMAIL` value and verify it identifies the existing active Owner Auth user.
+- [ ] Set the existing Owner Supabase Auth password to a random 8–12 digit PIN using Supabase Auth administration; never commit or expose the PIN.
+- [ ] Configure and verify production SMTP, sender-domain SPF/DKIM/DMARC and inbox delivery for Android Member OTP and Owner-issued member invitations; this does not affect Owner PIN sign-in.
 - [ ] Verify the owner Auth account and manually bootstrap only that account to owner; new profiles intentionally default to member.
 - [ ] Apply the pending migrations in order: `20261106170418_private_realtime_catalog_broadcast.sql`, `20261106170438_backend_report_idempotency_and_atomic_catalog.sql`, `20261106170450_transactional_admin_mutations_audit.sql`, and `20261106170509_atomic_member_catalog_and_device_registration.sql`.
 - [ ] Deploy all 15 latest Edge Functions with JWT verification enabled, including the run-idempotent report, atomic catalog/device RPC clients and owner-checked transactional admin functions.
@@ -59,7 +59,7 @@ The APK artifact is a debug build using an ephemeral debug keystore. It is not a
 
 ## End-to-end acceptance tests still required
 
-- [ ] Owner login on the production Render origin.
+- [ ] Owner PIN login on the production Render origin; verify Member and suspended accounts are rejected.
 - [ ] Invite a member as owner; deliver and complete the member OTP flow.
 - [ ] Register the Android device and verify ownership binding and duplicate registration behavior.
 - [ ] Create a tool, validate its recipe, publish it and verify the committed immutable version in Supabase.
@@ -87,4 +87,4 @@ The APK artifact is a debug build using an ephemeral debug keystore. It is not a
 
 ## Release decision
 
-**NOT PRODUCTION READY.** Current-head CI is green, but production deployment/configuration, real owner/member/device workflow, signed release artifact, live Realtime/RLS authorization tests and physical-device acceptance remain unverified. Do not merge PR #1 or announce production availability until every required gate above has evidence.
+**NOT PRODUCTION READY.** The prior head's CI passed, but the Owner PIN change requires fresh CI verification. Production deployment/configuration, PIN bootstrap, real owner/member/device workflow, signed release artifact, live Realtime/RLS authorization tests and physical-device acceptance remain unverified. Do not merge PR #1 or announce production availability until every required gate above has evidence.
