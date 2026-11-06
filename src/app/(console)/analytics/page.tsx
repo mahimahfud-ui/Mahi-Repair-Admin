@@ -32,7 +32,7 @@ export default async function AnalyticsPage() {
 
   return (
     <ConsoleShell active="/analytics" title="Analytics" subtitle="Server-aggregated repair activity and failure trends">
-      {error && <div className="panel mb-4 p-4 text-sm text-red-300">Analytics are temporarily unavailable.</div>}
+      {error && <div className="panel mb-4 p-4 text-sm text-red-300">Analytics unavailable: {error.message}</div>}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {metrics.map(([label, value, Icon]) => <div className="panel p-5" key={label}><Icon className="text-red-400" size={18} /><div className="stat-value mt-4">{value.toLocaleString()}</div><div className="mt-1 text-xs muted">{label}</div></div>)}
       </div>

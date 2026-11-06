@@ -1,9 +1,10 @@
 import { authenticate, respond, preflight, handleError, jsonBody, rateLimit } from '../_shared/http.ts';
 import { z } from 'npm:zod@4';
-import { hasAuthorizedRunStepIds } from '../_shared/run-report.ts';
+import { hasAuthorizedRunStepIds, matchesExistingRun } from '../_shared/run-report.ts';
 
 const ErrorCode = z.string().regex(/^[A-Z0-9_:-]{1,100}$/);
 const Run = z.object({
+  run_id: z.string().uuid(),
   device_id: z.string().uuid(),
   tool_id: z.string().uuid(),
   tool_version: z.number().int().positive(),
@@ -61,6 +62,24 @@ Deno.serve(async (req) => {
     if (!checked.success) return respond(req, { error: { code: 'INVALID_RUN', issues: checked.error.issues } }, 422);
     const value = checked.data;
 
+    // Resolve an accepted retry before checking mutable device/tool state. The initial
+    // acceptance remains idempotent after a later device revoke or tool disable.
+    const findAcceptedDuplicate = async (): Promise<Response | null> => {
+      const { data: existing, error } = await admin.from('repair_runs')
+        .select('id,user_id,device_id,tool_id,tool_version,started_at,completed_at,result,step_results,error_code,app_version')
+        .eq('id', value.run_id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!existing) return null;
+      if (!matchesExistingRun(existing, user.id, value)) {
+        throw Object.assign(new Error('This run ID was already used with different report content.'), { status: 409 });
+      }
+      return respond(req, { data: { run_id: existing.id, accepted: true, duplicate: true } }, 200);
+    };
+
+    const acceptedDuplicate = await findAcceptedDuplicate();
+    if (acceptedDuplicate) return acceptedDuplicate;
+
     const { data: device, error: deviceError } = await admin.from('devices')
       .select('id,user_id,revoked_at,android_api,app_version').eq('id', value.device_id).eq('user_id', user.id).single();
     if (deviceError || !device || device.revoked_at) throw Object.assign(new Error('Active registered device required'), { status: 403 });
@@ -83,8 +102,32 @@ Deno.serve(async (req) => {
     const knownStepIds = new Set((payload.steps ?? []).map((step) => step.id));
     if (!hasAuthorizedRunStepIds(value.result, value.step_results, knownStepIds)) throw Object.assign(new Error('Run contains a step ID that is not part of the signed recipe.'), { status: 422 });
 
-    const { data, error } = await admin.from('repair_runs').insert({ ...value, user_id: user.id }).select('id').single();
-    if (error) throw error;
-    return respond(req, { data: { run_id: data.id, accepted: true } }, 201);
+    const { data, error } = await admin.from('repair_runs')
+      .insert({
+        id: value.run_id,
+        device_id: value.device_id,
+        tool_id: value.tool_id,
+        tool_version: value.tool_version,
+        started_at: value.started_at,
+        completed_at: value.completed_at ?? null,
+        result: value.result,
+        step_results: value.step_results,
+        error_code: value.error_code ?? null,
+        app_version: value.app_version,
+        user_id: user.id,
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      // A concurrent retry may win the primary-key insert. Re-read and compare every field.
+      if (error.code === '23505') {
+        const duplicate = await findAcceptedDuplicate();
+        if (duplicate) return duplicate;
+        throw Object.assign(new Error('The run ID conflicts with an existing report.'), { status: 409 });
+      }
+      throw error;
+    }
+    return respond(req, { data: { run_id: data.id, accepted: true, duplicate: false } }, 201);
   } catch (error) { return handleError(req, error); }
 });

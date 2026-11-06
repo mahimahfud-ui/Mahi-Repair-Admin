@@ -35,6 +35,7 @@ Verify the signature over the UTF-8 bytes of `signed_payload` using the embedded
 
 ```json
 {
+  "run_id": "client-generated UUID for this execution; reuse unchanged on retries",
   "device_id": "uuid",
   "tool_id": "uuid",
   "tool_version": 1,
@@ -45,6 +46,10 @@ Verify the signature over the UTF-8 bytes of `signed_payload` using the embedded
   "app_version": "1.0.0"
 }
 ```
+
+Android stores the report and its exact serialized request body in a Room outbox before network I/O. WorkManager retries queued reports with a connected-network constraint and exponential backoff. A periodic 15-minute worker recovers reports after process death. Every retry reuses the original `run_id`.
+
+The server uses `repair_runs.id = run_id` as the idempotency key. An identical retry for the same member returns HTTP 200 with `duplicate: true`; a reused ID with different content or another member returns HTTP 409. The client removes the outbox record only after the server acknowledges the matching run ID. Account/device mismatches are retained locally and are not sent using another identity.
 
 Never include personal files, messages, credentials, photos or unrelated device identifiers in logs. Device registration should submit only device label (optional), app version, Android version and API level. Device IDs are server-issued UUIDs.
 

@@ -1,5 +1,4 @@
 "use server";
-import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
@@ -7,40 +6,12 @@ import { RepairRecipeSchema } from '@/lib/recipe/catalog';
 import { requireOwner } from '@/lib/auth/require-owner';
 
 const ADMIN_FUNCTIONS = new Set(['admin-invite-member','admin-manage-member','admin-upsert-tool','admin-publish-tool','admin-disable-tool','admin-assign-tool','admin-save-validation','admin-delete-draft-tool','admin-manage-device','admin-manage-tool-state','get-admin-analytics']);
-const ADMIN_OPERATION_FAILED = 'The administrative operation could not be completed. Please retry.';
-
-/** Server-side OTP request keeps PKCE/session cookies out of browser JavaScript. */
-export async function requestSignInLink(email: string): Promise<{ ok: boolean }> {
-  const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
-  if (normalizedEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) return { ok: false };
-
-  try {
-    const requestOrigin = (await headers()).get('origin');
-    const callbackOrigin = process.env['NEXT_PUBLIC_APP_URL'] || requestOrigin;
-    if (!callbackOrigin) return { ok: false };
-    const parsedOrigin = new URL(callbackOrigin);
-    if (!['http:', 'https:'].includes(parsedOrigin.protocol) || parsedOrigin.username || parsedOrigin.password ||
-      (process.env.NODE_ENV === 'production' && parsedOrigin.protocol !== 'https:') ||
-      (parsedOrigin.pathname !== '/' && parsedOrigin.pathname !== '') || parsedOrigin.search || parsedOrigin.hash) return { ok: false };
-
-    const supabase = await createClient();
-    const { error } = await supabase.auth.signInWithOtp({
-      email: normalizedEmail,
-      options: { shouldCreateUser: false, emailRedirectTo: new URL('/auth/callback', parsedOrigin.origin).toString() },
-    });
-    return { ok: !error };
-  } catch {
-    return { ok: false };
-  }
-}
 export async function signOut() { const supabase = await createClient(); await supabase.auth.signOut(); redirect('/login'); }
 export async function invokeAdminFunction(functionName: string, body: Record<string, unknown>) {
   if (!ADMIN_FUNCTIONS.has(functionName)) throw new Error('Unsupported administrative operation.');
   const { supabase } = await requireOwner();
   const { data, error } = await supabase.functions.invoke(functionName, { body });
-  const envelope = data as { data?: unknown; error?: unknown } | null;
-  if (error || !envelope || envelope.error || envelope.data == null) throw new Error(ADMIN_OPERATION_FAILED);
-  return envelope.data;
+  if (error) throw new Error(error.message); return data;
 }
 export async function createTool(formData: FormData) {
   await requireOwner();
@@ -68,7 +39,7 @@ export async function saveToolDraft(formData: FormData) {
   if (checked.data.toolId !== slug) throw new Error('Recipe toolId must match the slug field.');
   const { supabase } = await requireOwner();
   const { data: tool, error } = await supabase.from('repair_tools').select('id,status').eq('id', id).single();
-  if (error || !tool) throw new Error('The requested tool is unavailable.');
+  if (error || !tool) throw new Error('Tool not found.');
   if (tool.status === 'ARCHIVED') throw new Error('Archived tools cannot be edited.');
   await invokeAdminFunction('admin-upsert-tool', { id, name, slug, category, description, icon, draft_recipe: checked.data });
   revalidatePath('/tools');
@@ -89,7 +60,7 @@ export async function saveValidationHistory(formData:FormData){
 export async function duplicateTool(formData:FormData){
   const id=String(formData.get('tool_id')??'');const {supabase}=await requireOwner();
   const {data,error}=await supabase.from('repair_tools').select('name,slug,category,description,icon,draft_recipe').eq('id',id).single();
-  if(error||!data)throw new Error('The requested tool is unavailable.');
+  if(error||!data)throw new Error('Tool not found.');
   const slug=`${data.slug}-copy-${crypto.randomUUID().slice(0,6)}`;
   const recipe={...(data.draft_recipe as Record<string,unknown>),toolId:slug,version:1,changelog:'Duplicated draft'};
   await invokeAdminFunction('admin-upsert-tool',{name:`${data.name} Copy`,slug,category:data.category,description:data.description,icon:data.icon,draft_recipe:recipe});
@@ -97,8 +68,8 @@ export async function duplicateTool(formData:FormData){
 }
 export async function deleteDraftTool(formData:FormData){
   const id=String(formData.get('tool_id')??'');
-  await invokeAdminFunction('admin-delete-draft-tool',{tool_id:id});
-  revalidatePath('/tools');
+  const result = await invokeAdminFunction('admin-delete-draft-tool',{tool_id:id});
+  revalidatePath('/tools');return result;
 }
 
 export async function setDeviceRevoked(formData:FormData){const deviceId=String(formData.get('device_id')??'');const revoked=String(formData.get('revoked')??'true')==='true';await invokeAdminFunction('admin-manage-device',{device_id:deviceId,revoked});revalidatePath('/members');}

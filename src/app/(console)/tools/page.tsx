@@ -23,8 +23,8 @@ export default async function ToolsPage() {
         <div className="text-sm muted">{tools?.length ?? 0} tools in your library</div>
         <Link href="/tools/new" className="btn btn-primary"><Plus size={15} /> New repair tool</Link>
       </div>
-      {error && <div className="panel mb-4 p-4 text-sm text-red-300">Unable to load the tool library right now.</div>}
-      {assignmentError && <div className="panel mb-4 p-4 text-sm text-red-300">Unable to load member assignments right now.</div>}
+      {error && <div className="panel mb-4 p-4 text-sm text-red-300">Unable to load tools: {error.message}</div>}
+      {assignmentError && <div className="panel mb-4 p-4 text-sm text-red-300">Unable to load member assignments: {assignmentError.message}</div>}
 
       <div className="panel overflow-hidden">
         <div className="flex items-center gap-2 border-b border-[#252830] p-4 text-sm muted"><ShieldAlert size={15} /> Tool inventory</div>
