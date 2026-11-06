@@ -40,6 +40,7 @@
     "node_modules",
     "supabase/functions",
     "tests",
-    "vitest.config.ts"
+    "vitest.config.ts",
+    "design-reference"
   ]
 }
