@@ -45,7 +45,9 @@ Configure only the browser-safe values in .env.local:
 ~~~env
 NEXT_PUBLIC_SUPABASE_URL=https://shwqsljicmhflnvjqjah.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=YOUR_PROJECT_PUBLISHABLE_KEY
+# Local development only. Render production must use the canonical HTTPS origin below.
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+# Render: https://mahi-repair-admin.onrender.com
 ~~~
 
 The publishable key is designed for browser use and is not a privileged credential. Never add SUPABASE_SERVICE_ROLE_KEY, database passwords, access tokens or the recipe-signing private key to .env.local, browser bundles, GitHub variables, Android resources or source control.
@@ -64,17 +66,25 @@ npm run build
 npm run start
 ~~~
 
-The hosting provider must use Node.js 22.23.4, install from the root package-lock.json, run npm ci, build with npm run build, and start with npm run start. Configure its assigned port through the platform's standard PORT environment variable. The current repository does not declare a production hosting provider or production website URL.
+The hosting provider must use Node.js 22.23.4, install from the root package-lock.json, run npm ci, build with npm run build, and start with npm run start. Configure its assigned port through the platform's standard PORT environment variable. The current Render Web Service is `mahi-repair-admin`, tracks branch `integration/connect-shared-supabase`, and serves the preview at https://mahi-repair-admin.onrender.com. The service is configured outside this repository; CI does not deploy Supabase changes.
 
 ## 4. Supabase project and authentication configuration — manual
 
 The existing project reference is shwqsljicmhflnvjqjah. Confirm that this is the intended project before using the CLI.
 
-1. Install/use the Supabase CLI and authenticate interactively with supabase login.
-2. Link this local checkout: supabase link --project-ref shwqsljicmhflnvjqjah.
-3. In Supabase Dashboard → Authentication → URL Configuration, set the Site URL to the exact deployed Admin HTTPS origin.
-4. Add the exact https://YOUR-ADMIN-HOST/auth/callback URL to the redirect allow list. Keep localhost callback entries only for local development.
-5. Verify that the intended Owner already has an Auth account and an active public.profiles row with role = 'owner' and status = 'active'. New Auth users default to the member role. Bootstrap an Owner only through a separately authorized, reviewed administrative operation; never make public signup an Owner path.
+1. Install/use the Supabase CLI and authenticate interactively with `supabase login`.
+2. Link this local checkout: `supabase link --project-ref shwqsljicmhflnvjqjah`.
+3. In Supabase Dashboard → Authentication → URL Configuration, set **Site URL** to `https://mahi-repair-admin.onrender.com`.
+4. Add the exact redirect URL `https://mahi-repair-admin.onrender.com/auth/callback`. Keep `http://localhost:3000/auth/callback` only for local development; do not use localhost as the hosted Site URL.
+5. In Render → `mahi-repair-admin` → Environment, set `NEXT_PUBLIC_APP_URL=https://mahi-repair-admin.onrender.com`. The login code now builds the callback from this configured origin and rejects HTTP in production; it does not trust `window.location.origin`.
+6. Verify that the intended Owner has an Auth account and an active `public.profiles` row with `role='owner'` and `status='active'`. New Auth users default to member. Bootstrap an Owner only through a separately authorized, reviewed operation; never make public signup an Owner path.
+
+### Magic Link and email delivery
+
+- The Admin login UI blocks duplicate in-flight submissions and enforces a persistent 60-second cooldown across reloads/tabs. Supabase Auth must retain its server-side OTP/Magic Link rate limit as the authoritative enforcement layer.
+- In Supabase Dashboard → Authentication → SMTP Settings, configure a production custom SMTP provider (host, port, username, password and verified sender address). The built-in Supabase email service is for testing, sends only to pre-authorized team addresses and has a very low project-wide quota; it is not suitable for production.
+- In Authentication → Rate Limits, keep the Magic Link/OTP per-address cooldown at 60 seconds and set the aggregate email quota no higher than the SMTP provider's approved sending quota. Newly configured SMTP starts with a conservative 30 emails/hour limit; raise it only after verifying provider limits and deliverability.
+- Verify sender-domain SPF, DKIM and DMARC, inspect provider delivery/bounce logs and send a real message to the Owner mailbox. A successful Auth API response alone does not prove inbox delivery.
 
 The callback and every protected console request independently verify the authenticated user and active Owner profile. A member or suspended/revoked account must not enter the Owner console.
 
@@ -169,15 +179,13 @@ Deploy this repository as a Node.js 22.23.4 application with the repository root
 - Build command: npm run build
 - Start command: npm run start
 
-Set these browser-safe environment variables in the hosting provider:
+Set these browser-safe environment variables in Render → `mahi-repair-admin` → Environment:
 
-- NEXT_PUBLIC_SUPABASE_URL
-- NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-- NEXT_PUBLIC_APP_URL — exact HTTPS origin, without a trailing slash
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `NEXT_PUBLIC_APP_URL=https://mahi-repair-admin.onrender.com` — canonical HTTPS origin, no trailing slash
 
-Do not configure service-role credentials, the database password or the signing private key in the website host. After hosting is deployed, update Supabase Auth Site URL/redirect allow list and the Edge Function ADMIN_ORIGIN to the exact deployed origin. Test Owner login and denied member access before enabling real administration.
-
-This repository currently contains no deployment workflow and no root Dockerfile/Render manifest. Hosting deployment must be configured and initiated manually in the chosen provider.
+Do not configure service-role credentials, the database password or the signing private key in the website host. Supabase Auth Site URL, the exact `/auth/callback` redirect and Edge Function `ADMIN_ORIGIN` must match the deployed origin. The app deployment is automatic on updates to the configured branch; Supabase migrations, secrets and Edge Function deployments remain separate manual operations.
 
 ## 9. Private Realtime and device authorization checks
 
