@@ -1,85 +1,118 @@
-name: Inspect Admin ZIP Source
+name: Connect Mahi Repair Admin Backend
 on:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - mahi-repair-admin.zip
-      - .github/workflows/inspect-admin-source.yml
   push:
     branches:
       - integration/connect-shared-supabase
     paths:
       - mahi-repair-admin.zip
       - .github/workflows/inspect-admin-source.yml
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
-  extract-and-verify:
+  integrate-and-verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
     steps:
-      - name: Checkout repository
+      - name: Checkout Admin repository
         uses: actions/checkout@v4
-      - name: Extract ZIP safely and locate app
-        id: source
+        with:
+          fetch-depth: 1
+          persist-credentials: true
+      - name: Preserve Claude UI source and sync the existing secured Admin implementation
         shell: bash
         run: |
+          set -euo pipefail
+          mkdir -p design-reference
+          cp mahi-repair-admin.zip design-reference/mahi-repair-admin.zip
           python3 - <<'PY'
-          import os, pathlib, zipfile
+          import pathlib, zipfile, shutil, os
           archive = pathlib.Path("mahi-repair-admin.zip")
-          if not archive.is_file():
-              raise SystemExit("mahi-repair-admin.zip is missing")
-          target = pathlib.Path(os.environ["RUNNER_TEMP"]) / "mahi-repair-admin-source"
-          target.mkdir(parents=True, exist_ok=True)
+          tmp = pathlib.Path(os.environ["RUNNER_TEMP"]) / "mahi-repair-ui"
+          tmp.mkdir(parents=True, exist_ok=True)
           with zipfile.ZipFile(archive) as zf:
               for info in zf.infolist():
-                  path = pathlib.PurePosixPath(info.filename)
-                  if path.is_absolute() or ".." in path.parts:
-                      raise SystemExit(f"Unsafe ZIP entry: {info.filename}")
-                  if info.external_attr >> 16 & 0o170000 == 0o120000:
-                      raise SystemExit(f"Symlink ZIP entry rejected: {info.filename}")
-              zf.extractall(target)
-          manifests = list(target.rglob("package.json"))
-          manifests = [p for p in manifests if "node_modules" not in p.parts]
+                  p = pathlib.PurePosixPath(info.filename)
+                  if p.is_absolute() or ".." in p.parts:
+                      raise SystemExit("Unsafe path inside supplied ZIP")
+                  if (info.external_attr >> 16) & 0o170000 == 0o120000:
+                      raise SystemExit("Symlinks inside supplied ZIP are not accepted")
+              zf.extractall(tmp)
+          manifests = [p for p in tmp.rglob("package.json") if "node_modules" not in p.parts]
           if len(manifests) != 1:
-              raise SystemExit(f"Expected exactly one package.json; found {len(manifests)}")
-          app = manifests[0].parent.resolve()
-          print(f"ADMIN_SOURCE_DIR={app}")
-          print("Extracted source files:")
-          for p in sorted(app.rglob("*")):
-              if p.is_file() and "node_modules" not in p.parts and ".next" not in p.parts:
-                  print(p.relative_to(app))
-          with open(os.environ["GITHUB_ENV"], "a") as env:
-              env.write(f"ADMIN_SOURCE_DIR={app}\n")
+              raise SystemExit(f"Expected one frontend package.json, found {len(manifests)}")
+          source_ui = manifests[0].parent
+          destination = pathlib.Path("design-reference/ui-only")
+          if destination.exists():
+              shutil.rmtree(destination)
+          shutil.copytree(source_ui, destination)
+          print("Preserved frontend-only Claude project at design-reference/ui-only")
           PY
+          git clone --depth 1 --branch agent/admin-cloud-run https://github.com/mahimahfud-ui/Mahi-Repair.git "$RUNNER_TEMP/mahi-repair-source"
+          SOURCE="$RUNNER_TEMP/mahi-repair-source/admin-panel"
+          test -f "$SOURCE/package.json"
+          test -f "$SOURCE/src/app/actions.ts"
+          test -f "$SOURCE/supabase/migrations/202611050001_initial_schema.sql"
+          rm -rf app components lib src public scripts schemas supabase android-contract docs
+          rm -f package.json package-lock.json next.config.mjs next.config.ts next-env.d.ts tsconfig.json postcss.config.mjs tailwind.config.ts middleware.ts proxy.ts Dockerfile .dockerignore .env.example .nvmrc
+          cp -a "$SOURCE/." .
+          mkdir -p .github/workflows
+          rm -f .github/workflows/inspect-admin-source.yml
+          cat > .github/workflows/ci.yml <<'YAML'
+          name: Admin Panel CI
+          on:
+            pull_request:
+              branches: [main]
+            push:
+              branches: [main]
+          permissions:
+            contents: read
+          jobs:
+            verify:
+              runs-on: ubuntu-latest
+              timeout-minutes: 25
+              env:
+                NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+                NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+                NEXT_PUBLIC_APP_URL: http://localhost:3000
+              steps:
+                - uses: actions/checkout@v4
+                - uses: actions/setup-node@v4
+                  with:
+                    node-version: 22.23.4
+                - run: npm ci --no-audit --no-fund
+                - run: npm run check:scaffold
+                - run: npm run typecheck
+                - run: npm run lint
+                - run: npm run test
+                - run: npm run build
+          YAML
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "feat(admin): sync Owner-secured Supabase Control Center"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: ${{ env.ADMIN_SOURCE_DIR }}/package-lock.json
+          node-version: 22.23.4
       - name: Install dependencies
-        working-directory: ${{ env.ADMIN_SOURCE_DIR }}
         run: npm ci --no-audit --no-fund
-      - name: TypeScript check
-        working-directory: ${{ env.ADMIN_SOURCE_DIR }}
-        run: npm run typecheck --if-present
+      - name: Scaffold and security checks
+        run: npm run check:scaffold
+      - name: TypeScript
+        run: npm run typecheck
       - name: Lint
-        working-directory: ${{ env.ADMIN_SOURCE_DIR }}
-        run: npm run lint --if-present
+        run: npm run lint
       - name: Unit tests
-        working-directory: ${{ env.ADMIN_SOURCE_DIR }}
-        run: npm run test --if-present
+        run: npm run test
       - name: Production build
-        working-directory: ${{ env.ADMIN_SOURCE_DIR }}
-        run: npm run build --if-present
-      - name: Upload extracted source for integration
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: mahi-repair-admin-extracted-source
-          path: ${{ env.ADMIN_SOURCE_DIR }}
-          if-no-files-found: error
-          retention-days: 3
+        run: npm run build
