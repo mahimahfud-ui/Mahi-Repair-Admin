@@ -83,6 +83,10 @@ jobs:
           if "design-reference" not in excludes:
               excludes.append("design-reference")
           path.write_text(json.dumps(data, indent=2) + "\n")
+          test_file = Path("tests/repair-recipe-contract.test.ts")
+          test_source = test_file.read_text()
+          test_source = test_source.replace("../../contract-tests/repair-recipe-v1.json", "../contract-tests/repair-recipe-v1.json")
+          test_file.write_text(test_source)
           PY
           mkdir -p .github/workflows
           git config user.name "github-actions[bot]"
