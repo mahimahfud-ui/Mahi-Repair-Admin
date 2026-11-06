@@ -40,17 +40,16 @@ Windows PowerShell copy command:
 Copy-Item .env.example .env.local
 ~~~
 
-Configure only the browser-safe values in .env.local:
+Configure only the browser-safe project values in .env.local:
 
 ~~~env
 NEXT_PUBLIC_SUPABASE_URL=https://shwqsljicmhflnvjqjah.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=YOUR_PROJECT_PUBLISHABLE_KEY
-# Local development only. Render production must use the canonical HTTPS origin below.
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-# Render: https://mahi-repair-admin.onrender.com
+# Do not add the Owner Auth identifier here as a browser variable.
+# Set ADMIN_OWNER_EMAIL separately in the server-only hosting environment.
 ~~~
 
-The publishable key is designed for browser use and is not a privileged credential. `ADMIN_OWNER_EMAIL` is a server-only identifier for the existing Owner Auth account; never prefix it with `NEXT_PUBLIC_`. Never add the Owner PIN, SUPABASE_SERVICE_ROLE_KEY, database passwords, access tokens or the recipe-signing private key to source control, browser bundles or Android resources.
+The publishable key is designed for browser use and is not a privileged credential. Set `ADMIN_OWNER_EMAIL` separately as a server-only environment variable on Render; never prefix it with `NEXT_PUBLIC_`. The Owner PIN is the existing Auth account password and must not be stored in an environment file. Never add SUPABASE_SERVICE_ROLE_KEY, database passwords, access tokens or the recipe-signing private key to source control, browser bundles or Android resources.
 
 ## 3. Verify the website build
 
@@ -182,9 +181,9 @@ Set these browser-safe environment variables in Render → `mahi-repair-admin` �
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-- `NEXT_PUBLIC_APP_URL=https://mahi-repair-admin.onrender.com` — canonical HTTPS origin, no trailing slash
+- `ADMIN_OWNER_EMAIL` — the existing Owner Auth identifier; server-only, never prefixed with `NEXT_PUBLIC_`
 
-Do not configure service-role credentials, the database password or the signing private key in the website host. Supabase Auth Site URL, the exact `/auth/callback` redirect and Edge Function `ADMIN_ORIGIN` must match the deployed origin. The app deployment is automatic on updates to the configured branch; Supabase migrations, secrets and Edge Function deployments remain separate manual operations.
+Do not configure service-role credentials, the database password or the signing private key in the website host. Set Supabase Auth Site URL and Edge Function `ADMIN_ORIGIN` to the canonical Admin origin for member invitations. The Owner PIN login does not use an Auth callback URL. Configure Android's own Auth redirect/deep-link allowlist separately. The app deployment is automatic on updates to the configured branch; Supabase migrations, secrets and Edge Function deployments remain separate manual operations.
 
 ## 9. Private Realtime and device authorization checks
 
