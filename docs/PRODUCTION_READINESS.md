@@ -7,6 +7,10 @@ This checklist separates code/CI evidence from checks that must be performed aga
 - [x] Separate native Android client, private Next.js Admin Panel and Supabase backend.
 - [x] Minimal Android home with one RUN REPAIR action and a published-tool picker after the user taps it.
 - [x] Invite-only email OTP auth implementation with account creation disabled.
+- [x] Admin login UI blocks concurrent Magic Link submissions and applies a persistent 60-second cooldown across reloads/tabs.
+- [x] Magic Link redirect is built from the configured Admin origin, rejects insecure production origins, and no longer trusts the browser Host/location origin.
+- [x] Provider rate-limit, SMTP-not-authorized and temporary email-service errors have safe user-facing messages; raw provider errors are not shown.
+- [x] Magic Link helper tests cover production redirect validation, cooldown constant and Auth error mapping.
 - [x] Android Keystore-backed AES-GCM session storage and serialized refresh-token rotation implementation.
 - [x] Server-issued device identity and server-side member/device authorization implementation.
 - [x] Canonical recipe v1 schema, strict parameter validation and shared contract fixtures.
@@ -40,7 +44,9 @@ The APK artifact is a debug build using an ephemeral debug keystore. It is not a
 - [ ] Generate a real RSA-3072 key pair. Add only the PKCS#8 private key directly to Supabase Edge Function Secrets as RECIPE_SIGNING_PRIVATE_KEY_PEM; configure the matching X.509 public PEM in the Android release build. The checked-in public-key value remains a placeholder.
 - [ ] Configure the protected GitHub supabase-production environment with a required reviewer, secrets SUPABASE_ACCESS_TOKEN and SUPABASE_DB_PASSWORD, and variable ADMIN_ORIGIN.
 - [ ] Verify the private signing secret exists in Supabase before deployment without logging its value.
-- [ ] Configure Supabase Auth Site URL and the actual Admin Panel /auth/callback redirect allow list.
+- [ ] Configure Supabase Auth Site URL as `https://mahi-repair-admin.onrender.com` and allow the exact `https://mahi-repair-admin.onrender.com/auth/callback` redirect; keep localhost only for development.
+- [ ] Configure and verify a production custom SMTP provider, sender-domain SPF/DKIM/DMARC, inbox delivery and provider bounce logs. Supabase Auth logs currently show repeated `429 over_email_send_rate_limit` responses; Dashboard SMTP settings are not inspectable through the connected Supabase controls.
+- [ ] Keep the Supabase Magic Link/OTP request cooldown at 60 seconds and configure the total email quota to remain within the verified SMTP provider limit.
 - [ ] Verify the owner Auth account and manually bootstrap only that account to owner; new profiles intentionally default to member.
 - [ ] Review and apply 20261106120000_private_realtime_catalog_broadcast.sql using the protected production workflow.
 - [ ] Disable Supabase Realtime Allow public access and verify private realtime.messages RLS against owner/member/own-device/revoked-device cases.
