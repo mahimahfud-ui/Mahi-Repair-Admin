@@ -50,7 +50,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 # Render: https://mahi-repair-admin.onrender.com
 ~~~
 
-The publishable key is designed for browser use and is not a privileged credential. Never add SUPABASE_SERVICE_ROLE_KEY, database passwords, access tokens or the recipe-signing private key to .env.local, browser bundles, GitHub variables, Android resources or source control.
+The publishable key is designed for browser use and is not a privileged credential. `ADMIN_OWNER_EMAIL` is a server-only identifier for the existing Owner Auth account; never prefix it with `NEXT_PUBLIC_`. Never add the Owner PIN, SUPABASE_SERVICE_ROLE_KEY, database passwords, access tokens or the recipe-signing private key to source control, browser bundles or Android resources.
 
 ## 3. Verify the website build
 
@@ -68,25 +68,21 @@ npm run start
 
 The hosting provider must use Node.js 22.23.4, install from the root package-lock.json, run npm ci, build with npm run build, and start with npm run start. Configure its assigned port through the platform's standard PORT environment variable. The current Render Web Service is `mahi-repair-admin`, tracks branch `integration/connect-shared-supabase`, and serves the preview at https://mahi-repair-admin.onrender.com. The service is configured outside this repository; CI does not deploy Supabase changes.
 
-## 4. Supabase project and authentication configuration — manual
+## 4. Supabase project and Owner PIN authentication — manual
 
-The existing project reference is shwqsljicmhflnvjqjah. Confirm that this is the intended project before using the CLI.
+The existing project reference is `shwqsljicmhflnvjqjah`. Confirm it is the intended project before using the CLI.
 
 1. Install/use the Supabase CLI and authenticate interactively with `supabase login`.
 2. Link this local checkout: `supabase link --project-ref shwqsljicmhflnvjqjah`.
-3. In Supabase Dashboard → Authentication → URL Configuration, set **Site URL** to `https://mahi-repair-admin.onrender.com`.
-4. Add the exact redirect URL `https://mahi-repair-admin.onrender.com/auth/callback`. Keep `http://localhost:3000/auth/callback` only for local development; do not use localhost as the hosted Site URL.
-5. In Render → `mahi-repair-admin` → Environment, set `NEXT_PUBLIC_APP_URL=https://mahi-repair-admin.onrender.com`. The login code now builds the callback from this configured origin and rejects HTTP in production; it does not trust `window.location.origin`.
-6. Verify that the intended Owner has an Auth account and an active `public.profiles` row with `role='owner'` and `status='active'`. New Auth users default to member. Bootstrap an Owner only through a separately authorized, reviewed operation; never make public signup an Owner path.
+3. Verify the intended Owner has an existing Supabase Auth account and an active `public.profiles` row with `role='owner'` and `status='active'`. New Auth users default to Member.
+4. Set `ADMIN_OWNER_EMAIL` only in the Admin host's server-side environment. It is an internal identifier for the existing Owner account and is never shown in the browser.
+5. Set the existing Owner Auth account password to a random 8–12 digit numeric PIN using Supabase Auth administration. Do not use a birthday, phone number, repeated digits or a predictable sequence. Do not paste the PIN into GitHub, source code or this chat.
+6. Keep Supabase Auth password/token endpoint rate limits enabled. The server action submits the PIN through `signInWithPassword`, then checks the database profile. A failed, missing, suspended or Member profile is denied and the temporary Auth session is signed out.
+7. Every protected console request still calls `requireOwner()`; every privileged Server Action calls the same server-side guard and invokes an allowlisted authenticated Edge Function.
 
-### Magic Link and email delivery
+The Owner login UI has no email field, Magic Link button, OTP request or email-sending cooldown. It uses the normal Supabase Auth password session for the existing Owner account; Owner authorization is never inferred from the PIN alone.
 
-- The Admin login UI blocks duplicate in-flight submissions and enforces a persistent 60-second cooldown across reloads/tabs. Supabase Auth must retain its server-side OTP/Magic Link rate limit as the authoritative enforcement layer.
-- In Supabase Dashboard → Authentication → SMTP Settings, configure a production custom SMTP provider (host, port, username, password and verified sender address). The built-in Supabase email service is for testing, sends only to pre-authorized team addresses and has a very low project-wide quota; it is not suitable for production.
-- In Authentication → Rate Limits, keep the Magic Link/OTP per-address cooldown at 60 seconds and set the aggregate email quota no higher than the SMTP provider's approved sending quota. Newly configured SMTP starts with a conservative 30 emails/hour limit; raise it only after verifying provider limits and deliverability.
-- Verify sender-domain SPF, DKIM and DMARC, inspect provider delivery/bounce logs and send a real message to the Owner mailbox. A successful Auth API response alone does not prove inbox delivery.
-
-The callback and every protected console request independently verify the authenticated user and active Owner profile. A member or suspended/revoked account must not enter the Owner console.
+Member onboarding is separate: the Owner's `admin-invite-member` operation sends an invitation email, and Android Members use the existing six-digit Supabase Auth OTP flow. Configure and verify a production custom SMTP provider, sender-domain SPF/DKIM/DMARC and inbox delivery only for those member email flows. The Owner PIN login does not depend on SMTP.
 
 ## 5. PostgreSQL migrations — manual, separately approved
 
