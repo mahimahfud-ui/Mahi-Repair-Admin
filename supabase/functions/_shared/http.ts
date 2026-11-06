@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
 export function normalizeAdminOrigin(configured: string | undefined): string | null {
   if (!configured) return null;
