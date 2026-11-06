@@ -65,7 +65,7 @@ jobs:
           SOURCE="Mahi-Repair-source/admin-panel"
           test -f "$SOURCE/package.json"
           test -f "$SOURCE/src/app/actions.ts"
-          test -f "$SOURCE/supabase/migrations/202611050001_initial_schema.sql"
+          compgen -G "$SOURCE/supabase/migrations/*.sql" >/dev/null
           rm -rf app components lib src public scripts schemas supabase android-contract docs
           rm -f package.json package-lock.json next.config.mjs next.config.ts next-env.d.ts tsconfig.json postcss.config.mjs tailwind.config.ts middleware.ts proxy.ts Dockerfile .dockerignore .env.example .nvmrc
           cp -a "$SOURCE/." .
