@@ -2,7 +2,7 @@
 
 This checklist separates code/CI evidence from checks that must be performed against the actual production Render, Supabase and Android environments. A passing CI workflow is not a production acceptance test.
 
-## Implemented in the branch (CI re-verification required after the PIN change)
+## Implemented in the branch and covered by current PR CI
 
 - [x] Separate native Android client, private Next.js Admin Panel and Supabase backend.
 - [x] Minimal Android home with one RUN REPAIR action and a published-tool picker after the user taps it.
@@ -30,7 +30,7 @@ This checklist separates code/CI evidence from checks that must be performed aga
 - [x] Node.js 22.23.4 pinned across Render, Admin Panel and Admin Panel CI.
 - [x] Protected production workflow source for migration preview/apply and JWT-verified deployment of all 15 Edge Functions.
 
-Previous verified CI head before the PIN change: `9e627816446889909c1c57475082e2525a902847`. Re-run the PR workflow on the updated head before treating the new Owner PIN code as verified.
+Current PR head: `610e36d08aae3a433c38bddf84f68b5603a610d1`. Admin CI run [#42273636482](https://github.com/mahimahfud-ui/Mahi-Repair-Admin/actions/runs/42273636482) passed after the Owner PIN change.
 
 Evidence:
 - [Android CI](https://github.com/mahimahfud-ui/Mahi-Repair/actions/runs/42167251879)
@@ -50,7 +50,7 @@ The APK artifact is a debug build using an ephemeral debug keystore. It is not a
 - [ ] Configure the Admin host's server-only `ADMIN_OWNER_EMAIL` value and verify it identifies the existing active Owner Auth user.
 - [ ] Set the existing Owner Supabase Auth password to a random 8–12 digit PIN using Supabase Auth administration; never commit or expose the PIN.
 - [ ] Configure and verify production SMTP, sender-domain SPF/DKIM/DMARC and inbox delivery for Android Member OTP and Owner-issued member invitations; this does not affect Owner PIN sign-in.
-- [ ] Verify the owner Auth account and manually bootstrap only that account to owner; new profiles intentionally default to member.
+- [ ] Verify the existing Owner Auth account, set `ADMIN_OWNER_EMAIL` server-side, and set the Owner PIN as that account's Supabase Auth password. New profiles intentionally default to Member.
 - [ ] Apply the pending migrations in order: `20261106170418_private_realtime_catalog_broadcast.sql`, `20261106170438_backend_report_idempotency_and_atomic_catalog.sql`, `20261106170450_transactional_admin_mutations_audit.sql`, and `20261106170509_atomic_member_catalog_and_device_registration.sql`.
 - [ ] Deploy all 15 latest Edge Functions with JWT verification enabled, including the run-idempotent report, atomic catalog/device RPC clients and owner-checked transactional admin functions.
 - [ ] Disable Supabase Realtime Allow public access and verify private realtime.messages RLS against owner/member/own-device/revoked-device cases.
@@ -87,4 +87,4 @@ The APK artifact is a debug build using an ephemeral debug keystore. It is not a
 
 ## Release decision
 
-**NOT PRODUCTION READY.** The prior head's CI passed, but the Owner PIN change requires fresh CI verification. Production deployment/configuration, PIN bootstrap, real owner/member/device workflow, signed release artifact, live Realtime/RLS authorization tests and physical-device acceptance remain unverified. Do not merge PR #1 or announce production availability until every required gate above has evidence.
+**NOT PRODUCTION READY.** Admin CI passes on the updated Owner PIN head, but production deployment/configuration, PIN bootstrap, real owner/member/device workflow, signed release artifact, live Realtime/RLS authorization tests and physical-device acceptance remain unverified. Do not merge PR #1 or announce production availability until every required gate above has evidence.
