@@ -1,0 +1,79 @@
+name: Inspect Admin ZIP Source
+on:
+  push:
+    branches:
+      - integration/connect-shared-supabase
+    paths:
+      - mahi-repair-admin.zip
+      - .github/workflows/inspect-admin-source.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  extract-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Extract ZIP safely and locate app
+        id: source
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, zipfile
+          archive = pathlib.Path("mahi-repair-admin.zip")
+          if not archive.is_file():
+              raise SystemExit("mahi-repair-admin.zip is missing")
+          target = pathlib.Path(os.environ["RUNNER_TEMP"]) / "mahi-repair-admin-source"
+          target.mkdir(parents=True, exist_ok=True)
+          with zipfile.ZipFile(archive) as zf:
+              for info in zf.infolist():
+                  path = pathlib.PurePosixPath(info.filename)
+                  if path.is_absolute() or ".." in path.parts:
+                      raise SystemExit(f"Unsafe ZIP entry: {info.filename}")
+                  if info.external_attr >> 16 & 0o170000 == 0o120000:
+                      raise SystemExit(f"Symlink ZIP entry rejected: {info.filename}")
+              zf.extractall(target)
+          manifests = list(target.rglob("package.json"))
+          manifests = [p for p in manifests if "node_modules" not in p.parts]
+          if len(manifests) != 1:
+              raise SystemExit(f"Expected exactly one package.json; found {len(manifests)}")
+          app = manifests[0].parent.resolve()
+          print(f"ADMIN_SOURCE_DIR={app}")
+          print("Extracted source files:")
+          for p in sorted(app.rglob("*")):
+              if p.is_file() and "node_modules" not in p.parts and ".next" not in p.parts:
+                  print(p.relative_to(app))
+          with open(os.environ["GITHUB_ENV"], "a") as env:
+              env.write(f"ADMIN_SOURCE_DIR={app}\n")
+          PY
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ${{ env.ADMIN_SOURCE_DIR }}/package-lock.json
+      - name: Install dependencies
+        working-directory: ${{ env.ADMIN_SOURCE_DIR }}
+        run: npm ci --no-audit --no-fund
+      - name: TypeScript check
+        working-directory: ${{ env.ADMIN_SOURCE_DIR }}
+        run: npm run typecheck --if-present
+      - name: Lint
+        working-directory: ${{ env.ADMIN_SOURCE_DIR }}
+        run: npm run lint --if-present
+      - name: Unit tests
+        working-directory: ${{ env.ADMIN_SOURCE_DIR }}
+        run: npm run test --if-present
+      - name: Production build
+        working-directory: ${{ env.ADMIN_SOURCE_DIR }}
+        run: npm run build --if-present
+      - name: Upload extracted source for integration
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mahi-repair-admin-extracted-source
+          path: ${{ env.ADMIN_SOURCE_DIR }}
+          if-no-files-found: error
+          retention-days: 3
