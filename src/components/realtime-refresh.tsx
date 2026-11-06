@@ -66,7 +66,7 @@ export function RealtimeRefresh() {
             }
             router.refresh();
           })
-          .subscribe((status) => {
+          .subscribe((status: string) => {
             if (status === "SUBSCRIBED") {
               connected = true;
               retryMs = 2_000;
@@ -87,7 +87,7 @@ export function RealtimeRefresh() {
       }
     };
 
-    const authListener = supabase.auth.onAuthStateChange((event, session) => {
+    const authListener = supabase.auth.onAuthStateChange((event: string, session: { access_token: string } | null) => {
       if (session?.access_token) supabase.realtime.setAuth(session.access_token);
       if (event === "SIGNED_OUT") {
         connected = false;
