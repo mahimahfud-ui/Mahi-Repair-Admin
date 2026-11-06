@@ -1,0 +1,613 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mahirepaircloud.local/schemas/repair-recipe-v1.json",
+  "title": "Mahi Repair Recipe v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "toolId",
+    "title",
+    "version",
+    "category",
+    "steps"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "toolId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 80,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "category": {
+      "enum": [
+        "network",
+        "apps",
+        "storage",
+        "connectivity",
+        "system",
+        "guides"
+      ]
+    },
+    "minAndroidApi": {
+      "type": "integer",
+      "minimum": 23,
+      "maximum": 100,
+      "default": 23
+    },
+    "minAppVersion": {
+      "type": "string",
+      "maxLength": 30,
+      "default": "1.0.0",
+      "pattern": "^\\d+(?:\\.\\d+){0,3}$"
+    },
+    "estimatedSeconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3600,
+      "default": 60
+    },
+    "changelog": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "action",
+          "params",
+          "risk",
+          "requiresConfirmation"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "action": {
+            "enum": [
+              "CHECK_INTERNET",
+              "DNS_LOOKUP",
+              "HTTPS_PROBE",
+              "CHECK_APP_INSTALLED",
+              "CHECK_STORAGE",
+              "OPEN_APP",
+              "OPEN_APP_DETAILS",
+              "OPEN_ANDROID_SETTINGS",
+              "SHOW_GUIDE",
+              "ASK_USER_CONFIRMATION",
+              "REQUEST_OWN_APP_PERMISSION",
+              "VERIFY_INTERNET",
+              "VERIFY_DNS"
+            ]
+          },
+          "params": {
+            "type": "object"
+          },
+          "risk": {
+            "enum": [
+              "read_only",
+              "guided",
+              "permission"
+            ]
+          },
+          "requiresConfirmation": {
+            "type": "boolean"
+          },
+          "condition": {
+            "type": "object",
+            "properties": {
+              "previousStep": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "equals": {
+                "enum": [
+                  "success",
+                  "failure"
+                ]
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "previousStep",
+              "equals"
+            ]
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "action": {
+                  "const": "CHECK_INTERNET"
+                }
+              },
+              "required": [
+                "action"
+              ]
+            },
+            "then": {
+              "properties": {
+                "params": {
+                  "type": "object",
+                  "properties": {},
+                  "additionalProperties": false
+                },
+                "risk": {
+                  "const": "read_only"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "action": {
+                  "const": "DNS_LOOKUP"
+                }
+              },
+              "required": [
+                "action"
+              ]
+            },
+            "then": {
+              "properties": {
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "host": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 253,
+                      "pattern": "^(?=.{1,253}$)([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)(\\.([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?))*$"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "required": [
+                    "host"
+                  ]
+                },
+                "risk": {
+                  "const": "read_only"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "action": {
+                  "const": "HTTPS_PROBE"
+                }
+              },
+              "required": [
+                "action"
+              ]
+            },
+            "then": {
+              "properties": {
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "host": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 253,
+                      "pattern": "^(?=.{1,253}$)([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)(\\.([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?))*$"
+                    },
+                    "path": {
+                      "type": "string",
+                      "maxLength": 512,
+                      "pattern": "^/(?!/)[^\\r\\n]*$"
+                    },
+                    "timeoutMs": {
+                      "type": "integer",
+                      "minimum": 1000,
+                      "maximum": 10000
+                    }
+                  },
+                  "additionalProperties": false,
+                  "required": [
+                    "host"
+                  ]
+                },
+                "risk": {
+                  "const": "read_only"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "action": {
+                  "const": "CHECK_APP_INSTALLED"
+                }
+              },
+              "required": [
+                "action"
+              ]
+            },
+            "then": {
+              "properties": {
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "packageName": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 255,
+                      "pattern": "^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "required": [
+                    "packageName"
+                  ]
+                },
+                "risk": {
+                  "const": "read_only"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "action": {
+                  "const": "CHECK_STORAGE"
+                }
+              },
+              "required": [
+                "action"
+              ]
+            },
+            "then": {
+              "properties": {
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "minimumAvailableMb": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1000000
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "risk": {
+                  "const": "read_only"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "action": {
+                  "const": "OPEN_APP"
+                }
+              },
+              "required": [
+                "action"
+              ]
+            },
+            "then": {
+              "properties": {
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "packageName": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 255,
+                      "pattern": "^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "required": [
+                    "packageName"
+                  ]
+                },
+                "risk": {
+                  "const": "guided"
+                },
+                "requiresConfirmation": {
+                  "const": true
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "action": {
+                  "const": "OPEN_APP_DETAILS"
+                }
+              },
+              "required": [
+                "action"
+              ]
+            },
+            "then": {
+              "properties": {
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "packageName": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 255,
+                      "pattern": "^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "required": [
+                    "packageName"
+                  ]
+                },
+                "risk": {
+                  "const": "guided"
+                },
+                "requiresConfirmation": {
+                  "const": true
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "action": {
+                  "const": "OPEN_ANDROID_SETTINGS"
+                }
+              },
+              "required": [
+                "action"
+              ]
+            },
+            "then": {
+              "properties": {
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "screen": {
+                      "enum": [
+                        "wifi",
+                        "internet",
+                        "bluetooth",
+                        "display",
+                        "sound",
+                        "app_notifications",
+                        "date_time",
+                        "storage"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "required": [
+                    "screen"
+                  ]
+                },
+                "risk": {
+                  "const": "guided"
+                },
+                "requiresConfirmation": {
+                  "const": true
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "action": {
+                  "const": "SHOW_GUIDE"
+                }
+              },
+              "required": [
+                "action"
+              ]
+            },
+            "then": {
+              "properties": {
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    },
+                    "instructions": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 30,
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1000
+                      }
+                    }
+                  },
+                  "additionalProperties": false,
+                  "required": [
+                    "title",
+                    "instructions"
+                  ]
+                },
+                "risk": {
+                  "const": "guided"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "action": {
+                  "const": "ASK_USER_CONFIRMATION"
+                }
+              },
+              "required": [
+                "action"
+              ]
+            },
+            "then": {
+              "properties": {
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    },
+                    "message": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1000
+                    },
+                    "confirmLabel": {
+                      "type": "string",
+                      "maxLength": 40
+                    }
+                  },
+                  "additionalProperties": false,
+                  "required": [
+                    "title",
+                    "message"
+                  ]
+                },
+                "risk": {
+                  "const": "guided"
+                },
+                "requiresConfirmation": {
+                  "const": true
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "action": {
+                  "const": "REQUEST_OWN_APP_PERMISSION"
+                }
+              },
+              "required": [
+                "action"
+              ]
+            },
+            "then": {
+              "properties": {
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "permission": {
+                      "enum": [
+                        "POST_NOTIFICATIONS",
+                        "CAMERA",
+                        "ACCESS_FINE_LOCATION",
+                        "READ_MEDIA_IMAGES"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "required": [
+                    "permission"
+                  ]
+                },
+                "risk": {
+                  "const": "permission"
+                },
+                "requiresConfirmation": {
+                  "const": true
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "action": {
+                  "const": "VERIFY_INTERNET"
+                }
+              },
+              "required": [
+                "action"
+              ]
+            },
+            "then": {
+              "properties": {
+                "params": {
+                  "type": "object",
+                  "properties": {},
+                  "additionalProperties": false
+                },
+                "risk": {
+                  "const": "read_only"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "action": {
+                  "const": "VERIFY_DNS"
+                }
+              },
+              "required": [
+                "action"
+              ]
+            },
+            "then": {
+              "properties": {
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "host": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 253,
+                      "pattern": "^(?=.{1,253}$)([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)(\\.([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?))*$"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "required": [
+                    "host"
+                  ]
+                },
+                "risk": {
+                  "const": "read_only"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
