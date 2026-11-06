@@ -9,7 +9,6 @@ max_rows = 1000
 [auth]
 enabled = true
 site_url = "http://localhost:3000"
-additional_redirect_urls = ["http://localhost:3000/auth/callback"]
 
 [functions.admin-manage-tool-state]
 verify_jwt = true
