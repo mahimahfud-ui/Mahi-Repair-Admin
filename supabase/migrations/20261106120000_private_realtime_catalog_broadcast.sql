@@ -255,3 +255,80 @@ REVOKE ALL ON FUNCTION private.broadcast_repair_tool_catalog_changed() FROM PUBL
 REVOKE ALL ON FUNCTION private.broadcast_repair_tool_access_changed() FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION private.broadcast_repair_member_access_changed() FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION private.broadcast_repair_device_access_changed() FROM PUBLIC, anon, authenticated, service_role;
+
+
+-- Owner-only realtime invalidation for the web Admin Console.
+-- All changes are sent as an opaque event ID; clients refetch with their Owner session.
+CREATE POLICY "mahi repair active owners admin broadcasts"
+  ON realtime.messages
+  FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM public.profiles p
+      WHERE p.id = (SELECT auth.uid())
+        AND p.role = 'owner'
+        AND p.status = 'active'
+    )
+    AND extension = 'broadcast'
+    AND private IS TRUE
+    AND realtime.topic() = 'mahi-repair:admin'
+  );
+
+CREATE OR REPLACE FUNCTION private.broadcast_repair_admin_change()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  PERFORM realtime.send(
+    jsonb_build_object('event_id', gen_random_uuid()::text),
+    'admin_data_changed',
+    'mahi-repair:admin',
+    TRUE
+  );
+  RETURN NULL;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION private.broadcast_repair_admin_change()
+  FROM PUBLIC, anon, authenticated, service_role;
+
+-- Send one invalidation after the transaction commits for any Admin-visible mutation.
+-- No row values, member PII, recipe payloads, signatures, or credentials enter events.
+DROP TRIGGER IF EXISTS repair_tools_admin_broadcast ON public.repair_tools;
+CREATE TRIGGER repair_tools_admin_broadcast
+  AFTER INSERT OR UPDATE OR DELETE ON public.repair_tools
+  FOR EACH ROW EXECUTE FUNCTION private.broadcast_repair_admin_change();
+
+DROP TRIGGER IF EXISTS profiles_admin_broadcast ON public.profiles;
+CREATE TRIGGER profiles_admin_broadcast
+  AFTER INSERT OR UPDATE OR DELETE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION private.broadcast_repair_admin_change();
+
+DROP TRIGGER IF EXISTS devices_admin_broadcast ON public.devices;
+CREATE TRIGGER devices_admin_broadcast
+  AFTER INSERT OR UPDATE OR DELETE ON public.devices
+  FOR EACH ROW EXECUTE FUNCTION private.broadcast_repair_admin_change();
+
+DROP TRIGGER IF EXISTS repair_tool_access_admin_broadcast ON public.repair_tool_access;
+CREATE TRIGGER repair_tool_access_admin_broadcast
+  AFTER INSERT OR UPDATE OR DELETE ON public.repair_tool_access
+  FOR EACH ROW EXECUTE FUNCTION private.broadcast_repair_admin_change();
+
+DROP TRIGGER IF EXISTS repair_runs_admin_broadcast ON public.repair_runs;
+CREATE TRIGGER repair_runs_admin_broadcast
+  AFTER INSERT OR UPDATE OR DELETE ON public.repair_runs
+  FOR EACH ROW EXECUTE FUNCTION private.broadcast_repair_admin_change();
+
+DROP TRIGGER IF EXISTS admin_audit_logs_admin_broadcast ON public.admin_audit_logs;
+CREATE TRIGGER admin_audit_logs_admin_broadcast
+  AFTER INSERT ON public.admin_audit_logs
+  FOR EACH ROW EXECUTE FUNCTION private.broadcast_repair_admin_change();
+
+DROP TRIGGER IF EXISTS recipe_test_history_admin_broadcast ON public.recipe_test_history;
+CREATE TRIGGER recipe_test_history_admin_broadcast
+  AFTER INSERT OR UPDATE OR DELETE ON public.recipe_test_history
+  FOR EACH ROW EXECUTE FUNCTION private.broadcast_repair_admin_change();

@@ -1,6 +1,6 @@
 import { z } from 'npm:zod@4';
 import {
-  requireOwner, respond, preflight, handleError, jsonBody, rateLimit, audit,
+  requireOwner, respond, preflight, handleError, jsonBody, rateLimit,
 } from '../_shared/http.ts';
 import { RecipeSchema } from '../_shared/recipe.ts';
 
@@ -24,6 +24,7 @@ Deno.serve(async (req) => {
     if (!input.success) {
       return respond(req, { error: { code: 'INVALID_TOOL_METADATA', issues: input.error.issues } }, 422);
     }
+
     const { id, name, slug, category, description, icon, draft_recipe } = input.data;
     const parsedRecipe = RecipeSchema.safeParse(draft_recipe);
     if (!parsedRecipe.success) {
@@ -43,39 +44,29 @@ Deno.serve(async (req) => {
       const instructions = step.params.instructions;
       return Array.isArray(instructions) ? instructions.map(String) : [];
     });
-    const values = {
-      name,
-      slug,
-      category,
-      description,
-      icon,
-      draft_recipe: recipe,
-      android_compatibility: { minApi: recipe.minAndroidApi },
-      minimum_app_version: recipe.minAppVersion,
-      estimated_seconds: recipe.estimatedSeconds,
-      risk_classification: riskClassification,
-      repair_instructions: repairInstructions,
-    };
 
-    let data;
-    let error;
-    if (id) {
-      const { data: existing, error: lookupError } = await admin
-        .from('repair_tools').select('id,status').eq('id', id).single();
-      if (lookupError || !existing) throw Object.assign(new Error('Tool not found.'), { status: 404 });
-      if (existing.status === 'ARCHIVED') throw Object.assign(new Error('Archived tools cannot be edited.'), { status: 409 });
-      const result = await admin.from('repair_tools').update(values)
-        .eq('id', id).select('id,slug,status,version').single();
-      data = result.data;
-      error = result.error;
-    } else {
-      const result = await admin.from('repair_tools').insert({ ...values, created_by: user.id })
-        .select('id,slug,status,version').single();
-      data = result.data;
-      error = result.error;
+    const { data, error } = await admin.rpc('admin_save_repair_tool_draft', {
+      p_actor_id: user.id,
+      p_tool_id: id ?? null,
+      p_name: name,
+      p_slug: slug,
+      p_category: category,
+      p_description: description,
+      p_icon: icon,
+      p_draft_recipe: recipe,
+      p_min_android_api: recipe.minAndroidApi,
+      p_minimum_app_version: recipe.minAppVersion,
+      p_estimated_seconds: recipe.estimatedSeconds,
+      p_risk_classification: riskClassification,
+      p_repair_instructions: repairInstructions,
+    });
+
+    if (error) {
+      if (error.message.includes('TOOL_NOT_FOUND')) throw Object.assign(new Error('Tool not found.'), { status: 404 });
+      if (error.message.includes('ARCHIVED_TOOL_CANNOT_BE_EDITED')) throw Object.assign(new Error('Archived tools cannot be edited.'), { status: 409 });
+      if (error.code === '23505') throw Object.assign(new Error('A tool with this slug already exists.'), { status: 409 });
+      throw error;
     }
-    if (error || !data) throw error ?? new Error('Tool save did not return a record.');
-    await audit(admin, user.id, id ? 'tool.draft.updated' : 'tool.created', 'repair_tool', data.id, { slug });
     return respond(req, { data });
   } catch (error) {
     return handleError(req, error);

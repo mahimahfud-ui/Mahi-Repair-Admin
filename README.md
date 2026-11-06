@@ -52,7 +52,8 @@ The Admin website and Android client in [mahimahfud-ui/Mahi-Repair](https://gith
 - Owner web path: Supabase email magic link → server-side active Owner check → RLS-protected reads and allowlisted Owner-only Edge Function mutations.
 - Android member path: Supabase Auth → device registration → authorized published-recipe retrieval → on-device RSA signature verification → native allowlisted action execution → run-report submission.
 - Admin operations: member invitations/status, device revoke/restore, recipe drafting/validation/publication, tool state and assignment, analytics, audit records and execution logs.
-- Report retries: Android reuses the same run_id; an identical report is accepted as an idempotent duplicate, while altered content or a different member reusing the UUID is rejected.
+- Report retries: Android reuses the same run_id as the `repair_runs.id` primary key; a SHA-256 fingerprint makes identical retries idempotent and rejects altered content or a different member reusing the UUID.
+- Live updates: private Realtime broadcasts send only opaque event IDs to each authorized Android device and the active Owner Admin Console. Clients refetch through authenticated server endpoints; Realtime payloads never contain recipes or authorization decisions.
 
 See [Android API contract](docs/ANDROID_API_CONTRACT.md), [security model](docs/SECURITY_MODEL.md) and [manual deployment guide](docs/DEPLOYMENT.md).
 

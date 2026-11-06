@@ -96,6 +96,9 @@ The checked-in migrations are applied in timestamp order:
 - 20261105171330_20261105180000_harden_rls_grants_and_indexes.sql
 - 20261105171827_20261105183000_deny_browser_rate_limit_access.sql
 - 20261106120000_private_realtime_catalog_broadcast.sql
+- 20261106153000_backend_report_idempotency_and_atomic_catalog.sql
+- 20261106160000_transactional_admin_mutations_audit.sql
+- 20261106170000_atomic_member_catalog_and_device_registration.sql
 
 Review the SQL and target project before applying anything. The following is a manual operator procedure, not an automated GitHub workflow:
 
@@ -111,7 +114,7 @@ supabase db push
 
 Do not run this command as part of ordinary application CI. Do not assume that a migration present in Git has already been applied to Supabase.
 
-The migrations enable RLS and remove browser write grants. Authenticated browser access is read-only; data-changing operations use the server-verified Edge Functions and service-role privileges. The rate-limit table is moved to the private schema and its RPC is not executable by browser roles.
+The migrations enable RLS and remove browser write grants. Authenticated browser access is read-only; data-changing operations use the server-verified Edge Functions and service-role privileges. The rate-limit table is moved to the private schema and its RPC is not executable by browser roles. The report migration stores Android `run_id` directly as the existing `repair_runs.id` primary key and adds a SHA-256 `request_fingerprint`; a separate `run_id` column is not required. Atomic report/catalog/device RPCs revalidate member, device, assignment, publication, version and compatibility state under row locks.
 
 ## 6. Edge Function secrets and recipe-signing key — manual
 
@@ -191,16 +194,18 @@ Do not configure service-role credentials, the database password or the signing 
 
 The Realtime migration grants authenticated clients access only to their own private member/device broadcast topic. Events contain an opaque event ID, not recipe content. A device must still call the Edge Functions to fetch authorized recipes; the server checks member status, device ownership/revocation, publication state and assignment on every request.
 
-After a separately approved Realtime deployment, verify:
+After the four Realtime/backend migrations and JWT-verified Edge Functions have been deployed, verify:
 
-1. Supabase Realtime Allow public access is disabled.
-2. realtime.messages RLS prevents a member from subscribing to another member's or device's topic.
-3. A revoked device cannot fetch a catalogue or signed recipe.
-4. A suspended member cannot register devices, fetch recipes or submit reports.
-5. Assignment removal, disable/unpublish and device revocation block future server-side delivery.
-6. Android verifies RSA-SHA256 over the exact signed_payload UTF-8 bytes before parsing and executes only compiled native action IDs.
+1. Supabase Realtime **Allow public access** is disabled.
+2. `realtime.messages` RLS allows an active Owner only on `mahi-repair:admin`, and each active member only on that member's exact non-revoked device topic.
+3. The Android client receives only opaque device events, then fetches the latest catalogue through `get-my-repair-tools`.
+4. The Admin Console receives opaque `admin_data_changed` invalidations and re-renders its Owner-guarded server pages. If the websocket is interrupted, the UI falls back to a 15-second refresh until the private channel reconnects.
+5. A revoked device cannot fetch a catalogue or signed recipe; a suspended member cannot register, fetch or submit.
+6. Assignment changes, publish/unpublish, member status, device revocation and new repair reports produce invalidations after their database transaction commits.
+7. An identical Android `run_id` retry is acknowledged as a duplicate; changed report content or a different identity reusing the UUID receives a conflict.
+8. Android verifies RSA-SHA256 over the exact `signed_payload` UTF-8 bytes before parsing and executes only compiled native action IDs.
 
-Realtime notifications are hints only; they never authorize execution.
+Realtime messages contain no row data, PII, recipe payloads or signatures. They are invalidation hints only and never authorize execution.
 
 ## 10. Release verification boundary
 

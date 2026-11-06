@@ -1,4 +1,10 @@
-import { hasAuthorizedRunStepIds, matchesExistingRun } from './run-report.ts';
+import { canonicalJson } from './recipe.ts';
+import {
+  fingerprintRunReport,
+  hasAuthorizedRunStepIds,
+  mapRunRpcError,
+  resolveRunSubmissionOutcome,
+} from './run-report.ts';
 
 Deno.test('normal run results must use signed recipe step IDs', () => {
   const recipeIds = new Set(['check-internet', 'verify-dns']);
@@ -24,66 +30,63 @@ Deno.test('only a single failed engine precheck may use a reserved system ID', (
   ], recipeIds)) throw new Error('Additional untrusted step IDs were accepted');
 });
 
-
-Deno.test('report retries with the same run ID and content are idempotent', () => {
-  const submitted = {
-    run_id: '11111111-1111-4111-8111-111111111111',
-    device_id: '22222222-2222-4222-8222-222222222222',
-    tool_id: '33333333-3333-4333-8333-333333333333',
-    tool_version: 4,
-    started_at: '2026-11-06T10:00:00.000Z',
-    completed_at: '2026-11-06T10:00:10.000Z',
-    result: 'SUCCESS' as const,
-    step_results: [{ step_id: 'check-internet', status: 'SUCCESS' as const }],
-    app_version: '1.0.0',
-  };
-  const stored = {
-    id: submitted.run_id,
-    user_id: 'member-id',
-    device_id: submitted.device_id,
-    tool_id: submitted.tool_id,
-    tool_version: submitted.tool_version,
-    started_at: '2026-11-06T10:00:00+00:00',
-    completed_at: '2026-11-06T10:00:10+00:00',
-    result: submitted.result,
-    step_results: submitted.step_results,
-    error_code: null,
-    app_version: submitted.app_version,
-  };
-  if (!matchesExistingRun(stored, 'member-id', submitted)) {
-    throw new Error('An identical retry was not recognized as the same report');
-  }
+Deno.test('first accepted report receives HTTP 201', () => {
+  const outcome = resolveRunSubmissionOutcome(
+    { accepted: true, duplicate: false, run_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  );
+  if (outcome.httpStatus !== 201 || outcome.duplicate || outcome.conflict) throw new Error('First report outcome was incorrect');
 });
 
-Deno.test('reusing a run ID with changed content or another member is rejected', () => {
-  const submitted = {
-    run_id: '11111111-1111-4111-8111-111111111111',
-    device_id: '22222222-2222-4222-8222-222222222222',
-    tool_id: '33333333-3333-4333-8333-333333333333',
-    tool_version: 4,
-    started_at: '2026-11-06T10:00:00.000Z',
-    completed_at: '2026-11-06T10:00:10.000Z',
+Deno.test('identical retry receives HTTP 200 and is marked duplicate', () => {
+  const outcome = resolveRunSubmissionOutcome(
+    { accepted: true, duplicate: true, run_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  );
+  if (outcome.httpStatus !== 200 || !outcome.duplicate || outcome.conflict) throw new Error('Identical retry outcome was incorrect');
+});
+
+Deno.test('conflicting reuse of a run ID receives HTTP 409', () => {
+  const outcome = resolveRunSubmissionOutcome(
+    { conflict: true, run_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  );
+  if (outcome.httpStatus !== 409 || !outcome.conflict) throw new Error('Conflicting retry was not rejected');
+});
+
+Deno.test('fingerprint is stable for identical content and changes with identity/content', async () => {
+  const id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const report = {
+    device_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    tool_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    tool_version: 2,
+    started_at: '2026-11-06T10:00:00Z',
+    completed_at: '2026-11-06T10:01:00Z',
     result: 'SUCCESS' as const,
     step_results: [{ step_id: 'check-internet', status: 'SUCCESS' as const }],
-    app_version: '1.0.0',
+    app_version: '1.2.0',
   };
-  const stored = {
-    id: submitted.run_id,
-    user_id: 'member-id',
-    device_id: submitted.device_id,
-    tool_id: submitted.tool_id,
-    tool_version: submitted.tool_version,
-    started_at: submitted.started_at,
-    completed_at: submitted.completed_at,
-    result: submitted.result,
-    step_results: submitted.step_results,
-    error_code: null,
-    app_version: submitted.app_version,
-  };
-  if (matchesExistingRun(stored, 'different-member-id', submitted)) {
-    throw new Error('A report belonging to another member was treated as a retry');
-  }
-  if (matchesExistingRun(stored, 'member-id', { ...submitted, result: 'FAILED' })) {
-    throw new Error('A conflicting payload reused an accepted run ID');
-  }
+  const first = await fingerprintRunReport('dddddddd-dddd-4ddd-8ddd-dddddddddddd', id, report);
+  const retry = await fingerprintRunReport('dddddddd-dddd-4ddd-8ddd-dddddddddddd', id, report);
+  const changedContent = await fingerprintRunReport('dddddddd-dddd-4ddd-8ddd-dddddddddddd', id, { ...report, tool_version: 3 });
+  const changedIdentity = await fingerprintRunReport('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', id, report);
+  if (first !== retry) throw new Error('Identical report fingerprint was not stable');
+  if (first === changedContent) throw new Error('Changed content reused the same fingerprint');
+  if (first === changedIdentity) throw new Error('Different member identity reused the same fingerprint');
+});
+
+Deno.test('server RPC authorization failures map to fail-closed statuses', () => {
+  const invalid = mapRunRpcError('INVALID_DEVICE');
+  const revoked = mapRunRpcError('DEVICE_REVOKED');
+  const stale = mapRunRpcError('STALE_RECIPE_VERSION');
+  const invalidSteps = mapRunRpcError('INVALID_STEP_IDS');
+  if (invalid?.status !== 403 || revoked?.status !== 403) throw new Error('Invalid/revoked device was not forbidden');
+  if (stale?.status !== 409) throw new Error('Stale recipe version was not a conflict');
+  if (invalidSteps?.status !== 422) throw new Error('Unauthorized step IDs were not rejected');
+});
+
+Deno.test('fingerprint canonicalization matches the recipe canonical JSON contract', () => {
+  const left = canonicalJson({ a: 1, b: { c: 2, d: 3 } });
+  const right = canonicalJson({ b: { d: 3, c: 2 }, a: 1 });
+  if (left !== right) throw new Error('Fingerprint must use the shared canonical JSON serializer');
 });
