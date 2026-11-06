@@ -29,7 +29,6 @@ export function RealtimeRefresh() {
     let connected = false;
     let retryMs = 2_000;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
-    let fallbackTimer: ReturnType<typeof setInterval> | undefined;
     const processedEvents = new Set<string>();
 
     const scheduleReconnect = () => {
@@ -99,7 +98,7 @@ export function RealtimeRefresh() {
       }
     });
 
-    fallbackTimer = setInterval(() => {
+    const fallbackTimer = setInterval(() => {
       if (!connected) router.refresh();
     }, 15_000);
 
