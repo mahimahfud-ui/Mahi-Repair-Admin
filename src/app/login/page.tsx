@@ -1,6 +1,7 @@
 "use client";
 
-import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { Suspense, type FormEvent, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { ShieldCheck, Cloud, ArrowRight } from 'lucide-react';
 import { createClient } from '@/lib/supabase/browser';
 import {
@@ -30,6 +31,17 @@ function getRemainingCooldownSeconds(): number {
 }
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen grid place-items-center p-5 bg-[#090a0d] text-sm text-white">Loading secure sign-in…</main>}>
+      <LoginPageContent />
+    </Suspense>
+  );
+}
+
+function LoginPageContent() {
+  const searchParams = useSearchParams();
+  const denied = searchParams.get('denied') === '1';
+  const callbackError = searchParams.get('error') === 'callback';
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -152,6 +164,16 @@ export default function LoginPage() {
           </p>
         </div>
 
+        {denied && (
+          <p role="alert" className="mb-4 rounded-xl border border-amber-800 bg-amber-950/30 p-4 text-sm text-amber-200">
+            This sign-in link belongs to an account without active Owner access (for example, a Member account). You have been signed out. Request a new link using the active Owner email address.
+          </p>
+        )}
+        {callbackError && (
+          <p role="alert" className="mb-4 rounded-xl border border-amber-800 bg-amber-950/30 p-4 text-sm text-amber-200">
+            The sign-in link is missing, invalid, or expired. Request a fresh link and open the newest email in this browser.
+          </p>
+        )}
         {sent && (
           <p role="status" aria-live="polite" className="mb-4 rounded-xl border border-emerald-900 bg-emerald-950/30 p-4 text-sm text-emerald-200">
             Request accepted. If this address belongs to an active Owner account, a sign-in link will arrive by email. Check your inbox and spam folder.
