@@ -4,8 +4,56 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { RepairRecipeSchema } from '@/lib/recipe/catalog';
 import { requireOwner } from '@/lib/auth/require-owner';
+import { isValidOwnerAuthEmail, isValidOwnerPin } from '@/lib/auth/owner-pin';
 
 const ADMIN_FUNCTIONS = new Set(['admin-invite-member','admin-manage-member','admin-upsert-tool','admin-publish-tool','admin-disable-tool','admin-assign-tool','admin-save-validation','admin-delete-draft-tool','admin-manage-device','admin-manage-tool-state','get-admin-analytics']);
+
+export type OwnerPinSignInResult =
+  | { ok: false; reason: 'invalid' | 'rate_limited' | 'configuration' | 'failed' };
+
+/**
+ * The browser submits only the Owner PIN. The configured Owner Auth email is
+ * server-only; no Owner email, OTP or Magic Link is requested by this action.
+ * Supabase Auth creates the normal SSR session used by existing Owner checks.
+ */
+export async function signInWithOwnerPin(pin: string): Promise<OwnerPinSignInResult> {
+  const ownerEmail = process.env['ADMIN_OWNER_EMAIL']?.trim().toLowerCase();
+  if (!isValidOwnerAuthEmail(ownerEmail)) {
+    return { ok: false, reason: 'configuration' };
+  }
+  if (!isValidOwnerPin(pin)) {
+    return { ok: false, reason: 'invalid' };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: ownerEmail,
+      password: pin,
+    });
+
+    if (error || !data.user) {
+      const status = (error as { status?: number } | null)?.status;
+      return { ok: false, reason: status === 429 ? 'rate_limited' : 'invalid' };
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role,status')
+      .eq('id', data.user.id)
+      .maybeSingle();
+
+    if (profileError || profile?.role !== 'owner' || profile.status !== 'active') {
+      await supabase.auth.signOut();
+      return { ok: false, reason: 'invalid' };
+    }
+  } catch {
+    return { ok: false, reason: 'failed' };
+  }
+
+  redirect('/');
+}
+
 export async function signOut() { const supabase = await createClient(); await supabase.auth.signOut(); redirect('/login'); }
 export async function invokeAdminFunction(functionName: string, body: Record<string, unknown>) {
   if (!ADMIN_FUNCTIONS.has(functionName)) throw new Error('Unsupported administrative operation.');
