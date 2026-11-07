@@ -1,0 +1,14 @@
+project_id = "shwqsljicmhflnvjqjah"
+
+[api]
+enabled = true
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+
+[functions.admin-manage-tool-state]
+verify_jwt = true

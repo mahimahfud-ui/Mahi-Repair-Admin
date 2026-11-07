@@ -1,0 +1,3 @@
+"use client";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+export function AnalyticsChart({data}:{data:{result:string;count:number}[]}){return <div className="h-[260px] w-full mt-4"><ResponsiveContainer width="100%" height="100%"><BarChart data={data} margin={{top:10,right:12,left:-16,bottom:0}}><CartesianGrid stroke="#252830" strokeDasharray="3 3"/><XAxis dataKey="result" stroke="#818895" fontSize={11}/><YAxis stroke="#818895" fontSize={11} allowDecimals={false}/><Tooltip contentStyle={{background:'#101216',border:'1px solid #30343e',borderRadius:10,color:'#fff'}}/><Bar dataKey="count" fill="#dc4444" radius={[5,5,0,0]}/></BarChart></ResponsiveContainer></div>}

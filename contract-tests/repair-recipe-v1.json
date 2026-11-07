@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "toolId": "run-repair",
+  "title": "Run Repair",
+  "version": 1,
+  "category": "connectivity",
+  "minAndroidApi": 26,
+  "minAppVersion": "1.0.0",
+  "estimatedSeconds": 30,
+  "changelog": "Shared contract fixture. Not a production repair release.",
+  "steps": [
+    {
+      "id": "check-internet",
+      "action": "CHECK_INTERNET",
+      "params": {},
+      "risk": "read_only",
+      "requiresConfirmation": false
+    }
+  ]
+}
