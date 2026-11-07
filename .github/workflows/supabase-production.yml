@@ -16,6 +16,11 @@ on:
         type: boolean
         required: true
         default: false
+      previewed_commit_sha:
+        description: "Required for apply_changes=true: paste the exact commit SHA printed by the preview-only run"
+        type: string
+        required: false
+        default: ""
       deploy_send_email_hook:
         description: "Also sync Resend/Brevo secrets and deploy the HMAC-authenticated Send Email Hook (requires apply_changes; do not enable the Auth Hook until inbox tests pass)"
         type: boolean
@@ -39,6 +44,8 @@ jobs:
           REF: ${{ github.ref }}
           CONFIRM_PRODUCTION: ${{ inputs.confirm_production }}
           APPLY_CHANGES: ${{ inputs.apply_changes }}
+          PREVIEWED_COMMIT_SHA: ${{ inputs.previewed_commit_sha }}
+          EVENT_SHA: ${{ github.sha }}
           DEPLOY_EMAIL_HOOK: ${{ inputs.deploy_send_email_hook }}
         run: |
           set -euo pipefail
@@ -52,6 +59,10 @@ jobs:
           fi
           if [[ "$DEPLOY_EMAIL_HOOK" == "true" && "$APPLY_CHANGES" != "true" ]]; then
             echo "::error::deploy_send_email_hook requires apply_changes=true. Run preview first, inspect it, then explicitly authorize apply."
+            exit 1
+          fi
+          if [[ "$APPLY_CHANGES" == "true" && "$PREVIEWED_COMMIT_SHA" != "$EVENT_SHA" ]]; then
+            echo "::error::Apply requires previewed_commit_sha to exactly match this main-branch commit. Re-run a preview if main has changed."
             exit 1
           fi
 
@@ -71,7 +82,7 @@ jobs:
       - name: Checkout reviewed main commit
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Validate production credentials and origin
@@ -183,7 +194,7 @@ jobs:
         env:
           DEPLOYED_SHA: ${{ github.sha }}
         run: |
-          echo "Deployed production source commit: $DEPLOYED_SHA"
+          echo "Workflow source commit: $DEPLOYED_SHA"
           echo "Base Member/Owner functions: deployed with JWT verification enabled."
           if [[ "${{ inputs.apply_changes }}" != "true" ]]; then
             echo "Preview-only run: no production mutations were made."
