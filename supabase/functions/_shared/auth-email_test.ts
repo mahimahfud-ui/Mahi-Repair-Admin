@@ -39,19 +39,23 @@ Deno.test("invitation email builds a Supabase verification URL with Admin redire
   assertStringIncludes(message.html, "Continue to Mahi Repair");
 });
 
-Deno.test("HTML-sensitive content is escaped", () => {
-  const [message] = buildAuthEmailMessages(
-    { email: "member@example.com" },
-    {
-      token: "123456",
-      token_hash: "",
-      redirect_to: "",
-      email_action_type: "email",
-    },
-    "https://project.supabase.co",
-  );
-  assertStringIncludes(message.html, "123456");
-  assertEquals(message.html.includes("<script>"), false);
+Deno.test("invalid recipient addresses are rejected", () => {
+  let rejected = false;
+  try {
+    buildAuthEmailMessages(
+      { email: "not-an-email" },
+      {
+        token: "123456",
+        token_hash: "",
+        redirect_to: "",
+        email_action_type: "email",
+      },
+      "https://project.supabase.co",
+    );
+  } catch {
+    rejected = true;
+  }
+  assertEquals(rejected, true);
 });
 
 Deno.test("secure email change sends both correctly mapped code/hash pairs", () => {
