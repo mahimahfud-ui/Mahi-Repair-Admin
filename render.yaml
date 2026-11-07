@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: mahi-repair-admin
+    runtime: node
+    plan: free
+    region: singapore
+    repo: https://github.com/mahimahfud-ui/Mahi-Repair-Admin
+    branch: main
+    buildCommand: npm ci --no-audit --no-fund && npm run build
+    startCommand: npm run start
+    autoDeployTrigger: checksPass
+    healthCheckPath: /api/health
+    previews:
+      generation: off
