@@ -25,10 +25,10 @@ This checklist separates code/CI evidence from checks that must be performed aga
 - [x] Current-head Android unit tests and debug APK assembly.
 - [x] Current-head Android Compose UI emulator tests (API 35).
 - [x] Current-head source and generated-debug-APK privileged-secret marker scans.
-- [x] Current-head Supabase CI: all 15 Edge Function entrypoints/shared modules type-check; canonical recipe/run-report tests pass.
+- [x] Existing Supabase production project: all 15 currently deployed member/Owner Edge Functions are active with JWT verification enabled; all seven current migrations are applied (verified 2026-11-07).
 - [x] Current-head Admin CI: dependency audit, scaffold/security checks, TypeScript, ESLint, Vitest and Next.js production build pass.
 - [x] Node.js 22.23.4 pinned across Render, Admin Panel and Admin Panel CI.
-- [x] Protected production workflow source for migration preview/apply and JWT-verified deployment of all 15 Edge Functions.
+- [ ] Add/verify a protected production deployment workflow for migrations and Edge Functions; the current Admin CI workflow only checks source and does not deploy Supabase resources.
 
 Current PR head: `610e36d08aae3a433c38bddf84f68b5603a610d1`. Admin CI run [#42273636482](https://github.com/mahimahfud-ui/Mahi-Repair-Admin/actions/runs/42273636482) passed after the Owner PIN change.
 
@@ -49,10 +49,13 @@ The APK artifact is a debug build using an ephemeral debug keystore. It is not a
 - [ ] Verify the private signing secret exists in Supabase before deployment without logging its value.
 - [ ] Configure the Admin host's server-only `ADMIN_OWNER_EMAIL` value and verify it identifies the existing active Owner Auth user.
 - [ ] Set the existing Owner Supabase Auth password to a random 8–12 digit PIN using Supabase Auth administration; never commit or expose the PIN.
-- [ ] Configure and verify production SMTP, sender-domain SPF/DKIM/DMARC and inbox delivery for Android Member OTP and Owner-issued member invitations; this does not affect Owner PIN sign-in.
+- [ ] Deploy the new `send-auth-email` Edge Function with JWT verification disabled only for this endpoint; verify Standard Webhooks signature enforcement.
+- [ ] Set `SEND_EMAIL_HOOK_SECRET`, `RESEND_API_KEY`, `BREVO_API_KEY` and `AUTH_EMAIL_FROM` in Supabase Edge Function Secrets; verify sender-domain SPF/DKIM/DMARC at both providers.
+- [ ] Configure and enable the Supabase Send Email Auth Hook at `/functions/v1/send-auth-email`; verify Resend primary delivery and Brevo fallback for Android OTP and Owner invitations. This does not affect Owner PIN sign-in.
 - [ ] Verify the existing Owner Auth account, set `ADMIN_OWNER_EMAIL` server-side, and set the Owner PIN as that account's Supabase Auth password. New profiles intentionally default to Member.
 - [ ] Apply the pending migrations in order: `20261106170418_private_realtime_catalog_broadcast.sql`, `20261106170438_backend_report_idempotency_and_atomic_catalog.sql`, `20261106170450_transactional_admin_mutations_audit.sql`, and `20261106170509_atomic_member_catalog_and_device_registration.sql`.
-- [ ] Deploy all 15 latest Edge Functions with JWT verification enabled, including the run-idempotent report, atomic catalog/device RPC clients and owner-checked transactional admin functions.
+- [ ] Deploy all 15 member/Owner Edge Functions with JWT verification enabled, including the run-idempotent report, atomic catalog/device RPC clients and owner-checked transactional admin functions.
+- [ ] Deploy `send-auth-email` separately with `--no-verify-jwt` only after configuring the Auth Hook secret; confirm invalid hook signatures are rejected.
 - [ ] Disable Supabase Realtime Allow public access and verify private realtime.messages RLS against owner/member/own-device/revoked-device cases.
 - [ ] Deploy the PR-branch Edge Function updates with JWT verification enabled through the protected workflow.
 - [ ] Verify production database migration history, function deployment status and RLS policy behavior after deployment.
@@ -60,7 +63,9 @@ The APK artifact is a debug build using an ephemeral debug keystore. It is not a
 ## End-to-end acceptance tests still required
 
 - [ ] Owner PIN login on the production Render origin; verify Member and suspended accounts are rejected.
-- [ ] Invite a member as owner; deliver and complete the member OTP flow.
+- [ ] Invite a member as Owner; verify the invitation email is delivered through Resend.
+- [ ] Request Android Member OTP; verify the six-digit code is delivered through Resend and authentication succeeds.
+- [ ] Force a controlled Resend failure in a non-production test and verify Brevo fallback succeeds; do not disable the primary provider in production.
 - [ ] Register the Android device and verify ownership binding and duplicate registration behavior.
 - [ ] Create a tool, validate its recipe, publish it and verify the committed immutable version in Supabase.
 - [ ] Verify private per-device Android Realtime event delivery and the Owner-only Admin channel; ensure every event contains only an opaque event ID and triggers a fresh authorized fetch/render.
@@ -82,7 +87,7 @@ The APK artifact is a debug build using an ephemeral debug keystore. It is not a
 - A private Realtime subscription is a notification channel only. Every catalogue fetch and execution must still be authorized by the server for the active member and non-revoked device.
 - Revocation cannot be observed by an offline device until it reconnects. The server must deny the next online fetch/run request.
 - The APK artifact currently available from CI is debug-signed with an ephemeral key. No release signing proof is recorded.
-- The Render Free preview is not the production Admin Panel service.
+- The current Render Admin Web Service is deployed from `main` at https://mahi-repair-admin.onrender.com. Its successful deploy and healthy startup do not prove the Auth Hook, signing key or Android device workflow.
 - A remote recipe may only combine capabilities already compiled into the installed APK. Adding Kotlin behavior or an Android permission requires an app update.
 
 ## Release decision
