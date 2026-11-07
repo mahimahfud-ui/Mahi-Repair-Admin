@@ -65,7 +65,7 @@ npm run build
 npm run start
 ~~~
 
-The hosting provider must use Node.js 22.23.4, install from the root package-lock.json, run npm ci, build with npm run build, and start with npm run start. Configure its assigned port through the platform's standard PORT environment variable. The current Render Web Service is `mahi-repair-admin`, tracks branch `integration/connect-shared-supabase`, and serves the preview at https://mahi-repair-admin.onrender.com. The service is configured outside this repository; CI does not deploy Supabase changes.
+The hosting provider must use Node.js 22.23.4, install from the root package-lock.json, run npm ci, build with npm run build, and start with npm run start. Configure its assigned port through the platform's standard PORT environment variable. The current Render Web Service is `mahi-repair-admin`, tracks branch `main`, and serves https://mahi-repair-admin.onrender.com. The Render service is configured outside this repository; CI does not deploy Supabase changes.
 
 ## 4. Supabase project and Owner PIN authentication — manual
 
@@ -81,7 +81,7 @@ The existing project reference is `shwqsljicmhflnvjqjah`. Confirm it is the inte
 
 The Owner login UI has no email field, Magic Link button, OTP request or email-sending cooldown. It uses the normal Supabase Auth password session for the existing Owner account; Owner authorization is never inferred from the PIN alone.
 
-Member onboarding is separate: the Owner's `admin-invite-member` operation sends an invitation email, and Android Members use the existing six-digit Supabase Auth OTP flow. Configure and verify a production custom SMTP provider, sender-domain SPF/DKIM/DMARC and inbox delivery only for those member email flows. The Owner PIN login does not depend on SMTP.
+Member onboarding is separate: the Owner's `admin-invite-member` operation sends an invitation email, and Android Members use the existing six-digit Supabase Auth OTP flow. Both flows are delivered through the Supabase Send Email Auth Hook. The hook uses Resend as the primary provider and Brevo as the fallback; when the hook is enabled, Supabase's built-in SMTP delivery is not used. Verify the sender domain with SPF/DKIM (and DMARC policy) at both providers. The Owner PIN login does not send an Auth email and does not depend on this hook.
 
 ## 5. PostgreSQL migrations — manual, separately approved
 
@@ -129,9 +129,9 @@ openssl pkey -in recipe-signing-private.pem -pubout -out recipe-signing-public.p
 
 Paste the private key directly into Supabase Edge Function Secrets. Keep it out of GitHub, Render, browser variables and Android. Only the matching public key may be configured in the Android release build. The repository's placeholder public key is not a production key.
 
-## 7. Deploy Edge Functions — manual
+## 7. Configure the Send Email Auth Hook and deploy Edge Functions — manual
 
-There are 15 Edge Function directories in supabase/functions/:
+There are 16 Edge Function directories in supabase/functions/:
 
 ~~~text
 admin-assign-tool
@@ -149,9 +149,10 @@ get-my-repair-tools
 get-signed-repair-tool
 register-device
 submit-repair-run
+send-auth-email
 ~~~
 
-After the reviewed migrations and required secrets are in place, an authorized operator can deploy them manually:
+After the reviewed migrations and required secrets are in place, deploy the 15 member/Owner functions with JWT verification enabled:
 
 ~~~bash
 for function in \
@@ -165,7 +166,19 @@ do
 done
 ~~~
 
-Keep JWT verification enabled (the Supabase CLI default); do not pass --no-verify-jwt. Every function independently validates the Supabase user and active Owner/member role before performing its operation. The service-role client is created only inside Edge Function code.
+Keep JWT verification enabled (the Supabase CLI default) for all 15 member/Owner functions. The Send Email Auth Hook is the single exception: it is called by Supabase Auth and authenticates requests with Standard Webhooks HMAC signatures, so deploy it with JWT verification disabled:
+
+~~~bash
+supabase functions deploy send-auth-email --project-ref shwqsljicmhflnvjqjah --no-verify-jwt
+~~~
+
+The checked-in `supabase/config.toml` also declares `[functions.send-auth-email]` with `verify_jwt = false`. Do not disable JWT verification on any other function. The send-auth-email handler must reject unsigned/invalid hook events before calling either provider. The remaining functions independently validate the Supabase user and active Owner/member role before privileged operations. The service-role client is created only inside those Edge Functions.
+
+After deployment, open Supabase Dashboard → Authentication → Hooks → Send Email. Create an HTTP hook pointing to:
+
+`https://shwqsljicmhflnvjqjah.supabase.co/functions/v1/send-auth-email`
+
+Generate the hook secret in that screen, save the complete value as `SEND_EMAIL_HOOK_SECRET` in Edge Function Secrets, and enable the hook. Then confirm the project Email Provider is enabled. When the Send Email Hook is enabled, Supabase Auth routes auth emails through the hook instead of SMTP. Verify the member OTP and Owner invitation flows with real inboxes.
 
 Automation status: this repository currently has no .github/workflows/supabase-functions-deploy.yml. No Supabase migration or Edge Function deployment is performed automatically by the checked-in GitHub Actions workflow. Deployment steps in this section are manual. Do not treat a green CI run as a Supabase deployment.
 
@@ -183,7 +196,7 @@ Set these browser-safe environment variables in Render → `mahi-repair-admin` �
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `ADMIN_OWNER_EMAIL` — the existing Owner Auth identifier; server-only, never prefixed with `NEXT_PUBLIC_`
 
-Do not configure service-role credentials, the database password or the signing private key in the website host. Set Supabase Auth Site URL and Edge Function `ADMIN_ORIGIN` to the canonical Admin origin for member invitations. The Owner PIN login does not use an Auth callback URL. Configure Android's own Auth redirect/deep-link allowlist separately. The app deployment is automatic on updates to the configured branch; Supabase migrations, secrets and Edge Function deployments remain separate manual operations.
+Do not configure service-role credentials, the database password or the signing private key in the website host. Set the Supabase Auth Site URL and Edge Function `ADMIN_ORIGIN` to `https://mahi-repair-admin.onrender.com` (no trailing slash for `ADMIN_ORIGIN`). Add the Admin callback URL to the Auth redirect allowlist. Configure the Send Email Auth Hook separately as described above. The Owner PIN login does not use an Auth callback URL. Configure Android's own Auth redirect/deep-link allowlist separately. The app deployment is automatic on updates to the configured branch; Supabase migrations, secrets and Edge Function deployments remain separate manual operations.
 
 ## 9. Private Realtime and device authorization checks
 
@@ -206,4 +219,4 @@ Realtime messages contain no row data, PII, recipe payloads or signatures. They 
 
 A successful GitHub Actions run proves only that the code in the commit passed the automated checks. It does not prove live Owner authentication, SMTP delivery, database migration state, RLS in the target project, signing-key correctness, deployed Edge Function versions, public website health or physical Android-device behavior.
 
-Record the deployed commit SHA, project reference, hosting service/URL, manual migration history, Edge Function deployment result, key configuration verification and Owner/member/device acceptance results in the release record. No production deployment is implied by this guide or by CI.
+Record the deployed commit SHA, project reference, hosting service/URL, manual migration history, Edge Function deployment result, signing-key verification, Send Email Hook status, provider fallback test, and Owner/member/device acceptance results in the release record. No production deployment is implied by this guide or by CI.
