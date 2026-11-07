@@ -121,7 +121,7 @@ jobs:
           supabase db push --dry-run --remote
 
       - name: Stop after preview-only run
-        if: !inputs.apply_changes
+        if: ${{ !inputs.apply_changes }}
         run: |
           echo "Preview completed. No production secrets, migrations or Edge Functions were changed."
           echo "Review the migration list and dry-run output. Dispatch again from main with apply_changes=true only after approval."
