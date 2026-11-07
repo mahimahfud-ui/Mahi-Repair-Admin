@@ -28,11 +28,12 @@ This checklist separates code/CI evidence from checks that must be performed aga
 - [x] Production Supabase project status is `ACTIVE_HEALTHY`; all seven migrations currently in this repository are applied and all 15 deployed member/Owner Edge Functions are active with `verify_jwt=true` (verified 2026-11-07).
 - [x] Current-head Admin CI: dependency audit, scaffold/security checks, TypeScript, ESLint, Vitest and Next.js production build pass.
 - [x] Node.js 22.23.4 pinned across Render, Admin Panel and Admin Panel CI.
-- [ ] Add/verify a protected production deployment workflow for migrations and Edge Functions; the current Admin CI workflow only checks source and does not deploy Supabase resources.
+- [x] Add a protected, manual-only Supabase production deployment workflow at `.github/workflows/supabase-production.yml` (source and workflow CI verified).
+- [ ] Configure its GitHub `supabase-production` Environment with a required reviewer, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, and `ADMIN_ORIGIN` before the first dispatch.
 
 Current review branches (not merged):
-- Admin Send Email Hook PR #2 head `04d0979c0e356238dcb9f7687b55d7c4d4505a9f`; its [CI run #42356020198](https://github.com/mahimahfud-ui/Mahi-Repair-Admin/actions/runs/42356020198) passed all Node checks, Deno function type-checks, shared Deno tests and the Next.js build.
-- Android PR #9 restores the missing Recipe v1 unit-test fixture. Its [Android CI run #42355923036](https://github.com/mahimahfud-ui/Mahi-Repair/actions/runs/42355923036) passed unit tests and debug APK assembly. A subsequent commit adds the 15-minute best-effort catalogue sync and is awaiting its own CI result.
+- Admin Send Email Hook and protected deploy PR #2 includes the HMAC-signed Auth Hook, Resend→Brevo fallback, and manual protected production workflow. [Workflow CI #42356855692](https://github.com/mahimahfud-ui/Mahi-Repair-Admin/actions/runs/42356855692) passed the hook code/type-check/test/build source at commit `9ed694fe86005c6da9ad255c1e96b7d5f582173a`; a follow-up hardens noninteractive CLI flags and verifies the existing signing-secret name before deploy, and is awaiting its CI run.
+- Android PR #9 restores the missing Recipe v1 unit-test fixture, adds 15-minute best-effort catalogue sync, repairs embedded Admin lockfile/lint issues and reconciles stale setup docs. [Android CI #42356751034](https://github.com/mahimahfud-ui/Mahi-Repair/actions/runs/42356751034) and [embedded Admin CI #42356751017](https://github.com/mahimahfud-ui/Mahi-Repair/actions/runs/42356751017) both passed at current documented head `52285bfda3b6f4d7d1cfb79c5de2e513f7d5b338`.
 
 Production snapshot verified 2026-11-07:
 - Render Admin service is deployed from `main` and reports `live` at https://mahi-repair-admin.onrender.com. The `/api/health` route is included in the deployed build, but a direct public HTTP response has not been independently verified.
@@ -41,8 +42,8 @@ Production snapshot verified 2026-11-07:
 - The Android/Member end-to-end flow has not yet been proven. Supabase logs contain only earlier unauthenticated 401 probes, not a successful device registration or repair run.
 
 Evidence:
-- [Admin Send Email Hook CI](https://github.com/mahimahfud-ui/Mahi-Repair-Admin/actions/runs/42356020198)
-- [Android fixture PR CI and debug APK](https://github.com/mahimahfud-ui/Mahi-Repair/actions/runs/42355923036)
+- [Admin protected deploy workflow CI](https://github.com/mahimahfud-ui/Mahi-Repair-Admin/actions/runs/42356855692)
+- [Android + embedded Admin CI](https://github.com/mahimahfud-ui/Mahi-Repair/actions/runs/42356751034)
 - [Android PR #9](https://github.com/mahimahfud-ui/Mahi-Repair/pull/9)
 - [Admin PR #2](https://github.com/mahimahfud-ui/Mahi-Repair-Admin/pull/2)
 
@@ -53,8 +54,8 @@ The APK artifact is a debug build using an ephemeral debug keystore. It is not a
 - [x] Establish the production Render Web Service on branch `main` and record its canonical HTTPS URL: https://mahi-repair-admin.onrender.com (live deploy verified 2026-11-07).
 - [ ] Independently probe the public `/api/health` response and complete real Owner sign-in against the production origin; service startup and build success are not HTTP or login acceptance tests.
 - [ ] Generate a real RSA-3072 key pair. Add only the PKCS#8 private key directly to Supabase Edge Function Secrets as RECIPE_SIGNING_PRIVATE_KEY_PEM; configure the matching X.509 public PEM in the Android release build. The checked-in public-key value remains a placeholder.
-- [ ] Configure the protected GitHub supabase-production environment with a required reviewer, secrets SUPABASE_ACCESS_TOKEN and SUPABASE_DB_PASSWORD, and variable ADMIN_ORIGIN.
-- [ ] Verify the private signing secret exists in Supabase before deployment without logging its value.
+- [ ] Configure the protected GitHub `supabase-production` environment with a required reviewer, secrets `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD`, and variable `ADMIN_ORIGIN`.
+- [ ] Configure `RECIPE_SIGNING_PRIVATE_KEY_PEM` directly in Supabase Edge Function Secrets and verify key length/matching public key; the workflow checks secret-name presence only and never reads its value.
 - [x] Configure the Admin host's server-only `ADMIN_OWNER_EMAIL` value to identify the existing active Owner Auth user (verified account/profile mapping and Render environment update 2026-11-07).
 - [ ] Set the existing Owner Supabase Auth password to a random 8–12 digit PIN using Supabase Auth administration; never commit or expose the PIN.
 - [ ] Set `SEND_EMAIL_HOOK_SECRET`, `RESEND_API_KEY`, `BREVO_API_KEY` and `AUTH_EMAIL_FROM` in Supabase Edge Function Secrets; verify sender-domain SPF/DKIM/DMARC at both providers.
