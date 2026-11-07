@@ -17,3 +17,9 @@ verify_jwt = true
 # not a Supabase user JWT. The function verifies the hook signature itself.
 [functions.send-auth-email]
 verify_jwt = false
+
+# Keep disabled in source configuration until the Edge Function secrets and
+# provider inbox tests are complete in the production Supabase project.
+[auth.hook.send_email]
+enabled = false
+uri = "https://shwqsljicmhflnvjqjah.supabase.co/functions/v1/send-auth-email"
