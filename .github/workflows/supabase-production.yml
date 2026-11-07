@@ -91,20 +91,20 @@ jobs:
           version: latest
 
       - name: Link production project
-        run: supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
+        run: supabase link
 
       - name: Verify the existing recipe-signing private secret is present
         shell: bash
         run: |
           set -euo pipefail
-          secret_names="$(supabase secrets list --project-ref "$SUPABASE_PROJECT_ID")"
+          secret_names="$(supabase secrets list)"
           if ! grep -q 'RECIPE_SIGNING_PRIVATE_KEY_PEM' <<< "$secret_names"; then
             echo "::error::RECIPE_SIGNING_PRIVATE_KEY_PEM is missing in Supabase Edge Function Secrets. Configure it directly in Supabase before deploying."
             exit 1
           fi
 
       - name: Merge canonical Admin origin into Edge Function secrets
-        run: supabase secrets set --project-ref "$SUPABASE_PROJECT_ID" --yes "ADMIN_ORIGIN=$ADMIN_ORIGIN"
+        run: supabase secrets set --yes "ADMIN_ORIGIN=$ADMIN_ORIGIN"
 
       - name: Review remote migration history and preview changes
         run: |
@@ -137,7 +137,7 @@ jobs:
             submit-repair-run
           )
           for function in "${functions[@]}"; do
-            supabase functions deploy "$function" --project-ref "$SUPABASE_PROJECT_ID" --use-api --yes
+            supabase functions deploy "$function" --use-api --yes
           done
 
       - name: Sync optional Send Email Hook provider secrets
@@ -149,7 +149,7 @@ jobs:
           AUTH_EMAIL_FROM: ${{ secrets.AUTH_EMAIL_FROM }}
         run: |
           set -euo pipefail
-          supabase secrets set --project-ref "$SUPABASE_PROJECT_ID" --yes \
+          supabase secrets set --yes \
             "SEND_EMAIL_HOOK_SECRET=$SEND_EMAIL_HOOK_SECRET" \
             "RESEND_API_KEY=$RESEND_API_KEY" \
             "BREVO_API_KEY=$BREVO_API_KEY" \
@@ -157,7 +157,7 @@ jobs:
 
       - name: Deploy HMAC-verified Send Email Auth Hook
         if: inputs.deploy_send_email_hook
-        run: supabase functions deploy send-auth-email --project-ref "$SUPABASE_PROJECT_ID" --use-api --no-verify-jwt --yes
+        run: supabase functions deploy send-auth-email --use-api --no-verify-jwt --yes
 
       - name: Report deployed commit and hook state
         env:
