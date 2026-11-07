@@ -80,7 +80,13 @@ jobs:
         run: supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
 
       - name: Merge canonical Admin origin into Edge Function secrets
-        run: supabase secrets set --project-ref "$SUPABASE_PROJECT_ID" "ADMIN_ORIGIN=$ADMIN_ORIGIN"
+        run: supabase secrets set --project-ref "$SUPABASE_PROJECT_ID" --yes "ADMIN_ORIGIN=$ADMIN_ORIGIN"
+
+      - name: Review remote migration history and preview changes
+        run: |
+          set -euo pipefail
+          supabase migration list --remote
+          supabase db push --dry-run --remote
 
       - name: Apply reviewed database migrations
         run: supabase db push --yes --remote
@@ -107,7 +113,7 @@ jobs:
             submit-repair-run
           )
           for function in "${functions[@]}"; do
-            supabase functions deploy "$function" --project-ref "$SUPABASE_PROJECT_ID" --use-api
+            supabase functions deploy "$function" --project-ref "$SUPABASE_PROJECT_ID" --use-api --yes
           done
 
       - name: Validate optional Auth Hook secrets
@@ -133,7 +139,7 @@ jobs:
           AUTH_EMAIL_FROM: ${{ secrets.AUTH_EMAIL_FROM }}
         run: |
           set -euo pipefail
-          supabase secrets set --project-ref "$SUPABASE_PROJECT_ID" \
+          supabase secrets set --project-ref "$SUPABASE_PROJECT_ID" --yes \
             "SEND_EMAIL_HOOK_SECRET=$SEND_EMAIL_HOOK_SECRET" \
             "RESEND_API_KEY=$RESEND_API_KEY" \
             "BREVO_API_KEY=$BREVO_API_KEY" \
@@ -141,7 +147,7 @@ jobs:
 
       - name: Deploy HMAC-verified Send Email Auth Hook
         if: inputs.deploy_send_email_hook
-        run: supabase functions deploy send-auth-email --project-ref "$SUPABASE_PROJECT_ID" --use-api --no-verify-jwt
+        run: supabase functions deploy send-auth-email --project-ref "$SUPABASE_PROJECT_ID" --use-api --no-verify-jwt --yes
 
       - name: Report deployed commit and hook state
         env:
