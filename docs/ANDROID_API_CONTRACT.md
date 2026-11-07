@@ -47,7 +47,9 @@ Verify the signature over the UTF-8 bytes of `signed_payload` using the embedded
 }
 ```
 
-Android stores the report and its exact serialized request body in a Room outbox before network I/O. WorkManager retries queued reports with a connected-network constraint and exponential backoff. A periodic 15-minute worker recovers reports after process death. Every retry reuses the original `run_id`.
+Android stores the report and its exact serialized request body in a Room outbox before network I/O. Each report is enqueued as a unique one-time WorkManager job with a connected-network constraint and exponential backoff; app startup re-enqueues all pending report IDs. Every retry reuses the original `run_id`.
+
+Catalogue refresh is separate from report upload: the Android PR currently under review changes the periodic catalogue fallback to 15 minutes and uses WorkManager's update policy so installed clients replace the previous six-hour schedule. This is best-effort only; Android may defer the job for battery, connectivity or system scheduling. The private Realtime WebSocket remains the fast path while the app is foregrounded. FCM background push is not yet configured, so background or force-stopped clients discover updates on periodic sync or the next app launch.
 
 The server uses `repair_runs.id = run_id` as the idempotency key. An identical retry for the same member returns HTTP 200 with `duplicate: true`; a reused ID with different content or another member returns HTTP 409. The client removes the outbox record only after the server acknowledges the matching run ID. Account/device mismatches are retained locally and are not sent using another identity.
 
