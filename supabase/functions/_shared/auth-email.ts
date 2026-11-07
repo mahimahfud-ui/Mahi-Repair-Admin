@@ -226,7 +226,7 @@ export function buildAuthEmailMessages(
   supabaseUrl: string,
 ): AuthEmailMessage[] {
   const action = emailData.email_action_type as AuthEmailAction;
-  if (!(action in SUBJECTS)) throw new Error("Unsupported Supabase Auth email action.");
+  if (!Object.hasOwn(SUBJECTS, action)) throw new Error("Unsupported Supabase Auth email action.");
   if (!supabaseUrl) throw new Error("Supabase URL is not configured.");
 
   if (action === "email_change") {
