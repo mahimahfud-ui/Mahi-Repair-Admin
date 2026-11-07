@@ -14,6 +14,12 @@ function encodeBase64(value: Uint8Array): string {
   return btoa(binary);
 }
 
+function toArrayBuffer(value: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(value.byteLength);
+  copy.set(value);
+  return copy.buffer;
+}
+
 function constantTimeEqual(left: string, right: string): boolean {
   const length = Math.max(left.length, right.length);
   let difference = left.length ^ right.length;
@@ -91,12 +97,12 @@ export async function verifyStandardWebhook(
     try {
       const key = await crypto.subtle.importKey(
         "raw",
-        secret,
+        toArrayBuffer(secret),
         { name: "HMAC", hash: "SHA-256" },
         false,
         ["sign"],
       );
-      const digest = new Uint8Array(await crypto.subtle.sign("HMAC", key, signedContent));
+      const digest = new Uint8Array(await crypto.subtle.sign("HMAC", key, toArrayBuffer(signedContent)));
       const expected = encodeBase64(digest);
       if (candidates.some((candidate) => constantTimeEqual(expected, candidate))) return true;
     } catch {
