@@ -16,7 +16,7 @@ type VerifiedHook = {
 };
 
 const MAX_BODY_BYTES = 64 * 1024;
-const PROVIDER_TIMEOUT_MS = 10_000;
+const PROVIDER_TIMEOUT_MS = 1_800;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -185,17 +185,17 @@ Deno.serve(async (request: Request) => {
   const hookId = request.headers.get("webhook-id")?.trim();
   const baseKey = hookId && /^[A-Za-z0-9._:-]{1,180}$/.test(hookId) ? hookId : undefined;
   try {
-    const providers: string[] = [];
-    for (const [index, message] of messages.entries()) {
+    await Promise.all(messages.map((message, index) => {
       const key = baseKey ? `${baseKey}-${index + 1}` : undefined;
-      providers.push(await deliver(message, {
+      return deliver(message, {
         resendKey,
         brevoKey,
         sender,
         idempotencyKey: key,
-      }));
-    }
-    return json({ delivered: true, provider: providers.length === 1 ? providers[0] : providers });
+      });
+    }));
+    // Supabase Auth Hooks require an empty successful response.
+    return json({});
   } catch {
     console.error("Auth email delivery failed after primary and fallback attempts.", {
       action,
