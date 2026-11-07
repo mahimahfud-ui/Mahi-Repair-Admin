@@ -1,5 +1,5 @@
-import { Webhook } from "npm:standardwebhooks@1.0.0";
 import { buildAuthEmailMessages, type AuthEmailAction, type AuthEmailMessage } from "../_shared/auth-email.ts";
+import { verifyStandardWebhook } from "../_shared/standard-webhooks.ts";
 
 type VerifiedHook = {
   user?: { email?: string; new_email?: string };
@@ -23,31 +23,6 @@ function json(body: unknown, status = 200): Response {
     status,
     headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
   });
-}
-
-function verifyWebhook(payload: string, headers: Headers, configuredSecrets: string): VerifiedHook {
-  const candidates = configuredSecrets
-    .split("|")
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .map((value) => value.replace(/^v1,whsec_/, ""));
-
-  if (candidates.length === 0) throw new Error("No Auth Hook signing secret is configured.");
-
-  const standardHeaders = Object.fromEntries(headers.entries());
-  for (const secret of candidates) {
-    try {
-      const verified = new Webhook(secret).verify(payload, standardHeaders) as VerifiedHook;
-      if (!verified?.user || !verified?.email_data ||
-          typeof verified.email_data.email_action_type !== "string") {
-        throw new Error("Malformed Auth Hook event.");
-      }
-      return verified;
-    } catch {
-      // A second candidate may be the active key during secret rotation.
-    }
-  }
-  throw new Error("Auth Hook signature verification failed.");
 }
 
 function parseSender(value: string): { name: string; email: string } {
@@ -164,14 +139,21 @@ Deno.serve(async (request: Request) => {
     return json({ error: "PAYLOAD_TOO_LARGE" }, 413);
   }
 
+  const signatureValid = await verifyStandardWebhook(rawPayload, request.headers, hookSecret);
+  if (!signatureValid) return json({ error: "INVALID_HOOK_SIGNATURE_OR_PAYLOAD" }, 401);
+
   let event: VerifiedHook;
   try {
-    event = verifyWebhook(rawPayload, request.headers, hookSecret);
+    event = JSON.parse(rawPayload) as VerifiedHook;
   } catch {
-    return json({ error: "INVALID_HOOK_SIGNATURE_OR_PAYLOAD" }, 401);
+    return json({ error: "INVALID_AUTH_EMAIL_EVENT" }, 400);
+  }
+  if (!event?.user || !event?.email_data ||
+      typeof event.email_data.email_action_type !== "string") {
+    return json({ error: "INVALID_AUTH_EMAIL_EVENT" }, 422);
   }
 
-  const emailData = event.email_data!;
+  const emailData = event.email_data;
   const action = emailData.email_action_type as AuthEmailAction;
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const sender = Deno.env.get("AUTH_EMAIL_FROM") ?? "";
@@ -184,20 +166,16 @@ Deno.serve(async (request: Request) => {
 
   let messages: AuthEmailMessage[];
   try {
-    messages = buildAuthEmailMessages(
-      event.user!,
-      {
-        token: emailData.token,
-        token_hash: emailData.token_hash,
-        redirect_to: emailData.redirect_to,
-        email_action_type: action,
-        site_url: emailData.site_url,
-        token_new: emailData.token_new,
-        token_hash_new: emailData.token_hash_new,
-        old_email: emailData.old_email,
-      },
-      supabaseUrl,
-    );
+    messages = buildAuthEmailMessages(event.user, {
+      token: emailData.token,
+      token_hash: emailData.token_hash,
+      redirect_to: emailData.redirect_to,
+      email_action_type: action,
+      site_url: emailData.site_url,
+      token_new: emailData.token_new,
+      token_hash_new: emailData.token_hash_new,
+      old_email: emailData.old_email,
+    }, supabaseUrl);
   } catch (error) {
     const reason = error instanceof Error ? error.message : "Invalid Auth email event.";
     console.warn("Auth email event rejected.", { action, reason });
