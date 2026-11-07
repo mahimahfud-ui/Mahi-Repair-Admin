@@ -162,14 +162,14 @@ for function in \
   admin-upsert-tool get-admin-analytics get-my-repair-tools \
   get-signed-repair-tool register-device submit-repair-run
 do
-  supabase functions deploy "$function" --project-ref shwqsljicmhflnvjqjah
+  supabase functions deploy "$function" --project-ref shwqsljicmhflnvjqjah --yes
 done
 ~~~
 
 Keep JWT verification enabled (the Supabase CLI default) for all 15 member/Owner functions. The Send Email Auth Hook is the single exception: it is called by Supabase Auth and authenticates requests with Standard Webhooks HMAC signatures, so deploy it with JWT verification disabled:
 
 ~~~bash
-supabase functions deploy send-auth-email --project-ref shwqsljicmhflnvjqjah --no-verify-jwt
+supabase functions deploy send-auth-email --project-ref shwqsljicmhflnvjqjah --no-verify-jwt --yes
 ~~~
 
 The checked-in `supabase/config.toml` also declares `[functions.send-auth-email]` with `verify_jwt = false`. Do not disable JWT verification on any other function. The send-auth-email handler must reject unsigned/invalid hook events before calling either provider. The remaining functions independently validate the Supabase user and active Owner/member role before privileged operations. The service-role client is created only inside those Edge Functions.
