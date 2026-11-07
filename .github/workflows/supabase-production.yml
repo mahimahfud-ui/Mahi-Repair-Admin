@@ -140,20 +140,6 @@ jobs:
             supabase functions deploy "$function" --project-ref "$SUPABASE_PROJECT_ID" --use-api --yes
           done
 
-      - name: Validate optional Auth Hook secrets
-        if: inputs.deploy_send_email_hook
-        env:
-          SEND_EMAIL_HOOK_SECRET: ${{ secrets.SEND_EMAIL_HOOK_SECRET }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
-          AUTH_EMAIL_FROM: ${{ secrets.AUTH_EMAIL_FROM }}
-        run: |
-          set -euo pipefail
-          [[ -n "$SEND_EMAIL_HOOK_SECRET" ]] || { echo "::error::Missing SEND_EMAIL_HOOK_SECRET."; exit 1; }
-          [[ -n "$RESEND_API_KEY" ]] || { echo "::error::Missing RESEND_API_KEY."; exit 1; }
-          [[ -n "$BREVO_API_KEY" ]] || { echo "::error::Missing BREVO_API_KEY."; exit 1; }
-          [[ -n "$AUTH_EMAIL_FROM" ]] || { echo "::error::Missing AUTH_EMAIL_FROM."; exit 1; }
-
       - name: Sync optional Send Email Hook provider secrets
         if: inputs.deploy_send_email_hook
         env:
