@@ -95,7 +95,7 @@ The checked-in migrations are applied in timestamp order:
 - 20261106170450_transactional_admin_mutations_audit.sql
 - 20261106170509_atomic_member_catalog_and_device_registration.sql
 
-Review the SQL and target project before applying anything. The following is a manual operator procedure, not an automated GitHub workflow:
+Review the SQL and target project before applying anything. The production workflow in `.github/workflows/supabase-production.yml` is manual-only and requires an explicit `confirm_production=yes` input plus approval of the protected GitHub environment `supabase-production`. It first shows the remote migration history and dry-runs the pending migration plan, then applies only after the protected deployment job is approved. The same manual procedure remains available for operators who prefer the Supabase CLI:
 
 ~~~bash
 supabase db push --dry-run
@@ -180,7 +180,9 @@ After deployment, open Supabase Dashboard → Authentication → Hooks → Send 
 
 Generate the hook secret in that screen, save the complete value as `SEND_EMAIL_HOOK_SECRET` in Edge Function Secrets, and enable the hook. Then confirm the project Email Provider is enabled. When the Send Email Hook is enabled, Supabase Auth routes auth emails through the hook instead of SMTP. Verify the member OTP and Owner invitation flows with real inboxes.
 
-Automation status: this repository currently has no .github/workflows/supabase-functions-deploy.yml. No Supabase migration or Edge Function deployment is performed automatically by the checked-in GitHub Actions workflow. Deployment steps in this section are manual. Do not treat a green CI run as a Supabase deployment.
+Protected deployment workflow: `.github/workflows/supabase-production.yml`. It is triggered only with `workflow_dispatch` from `main`, requires an explicit confirmation input, and uses the protected GitHub Environment `supabase-production`. The workflow verifies the existing `RECIPE_SIGNING_PRIVATE_KEY_PEM` secret is present in Supabase without exposing its value, syncs the canonical `ADMIN_ORIGIN`, previews migration changes, applies approved migrations and deploys the 15 Member/Owner Edge Functions with JWT verification enabled. The Send Email Auth Hook is an explicit opt-in input and is deployed separately with JWT verification disabled only for that HMAC-authenticated endpoint.
+
+Before use, a repository administrator must create GitHub Settings → Environments → `supabase-production`, add at least one required reviewer, configure Environment secrets `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD`, and define the Environment variable `ADMIN_ORIGIN=https://mahi-repair-admin.onrender.com`. The existing `RECIPE_SIGNING_PRIVATE_KEY_PEM` must be provisioned directly in Supabase Edge Function Secrets, not copied into GitHub. For optional hook deployment, also configure GitHub Environment secrets `SEND_EMAIL_HOOK_SECRET`, `RESEND_API_KEY`, `BREVO_API_KEY`, and `AUTH_EMAIL_FROM`. The Auth Hook must remain disabled in Supabase Dashboard until provider inbox tests pass. A green CI run does not deploy anything; only an approved manual workflow dispatch mutates production.
 
 ## 8. Website hosting — manual
 
