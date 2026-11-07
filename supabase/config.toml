@@ -8,7 +8,12 @@ max_rows = 1000
 
 [auth]
 enabled = true
-site_url = "http://localhost:3000"
+site_url = "https://mahi-repair-admin.onrender.com"
 
 [functions.admin-manage-tool-state]
 verify_jwt = true
+
+# Supabase Auth invokes this HTTP hook using Standard Webhooks signatures,
+# not a Supabase user JWT. The function verifies the hook signature itself.
+[functions.send-auth-email]
+verify_jwt = false
