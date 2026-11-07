@@ -79,6 +79,16 @@ jobs:
       - name: Link production project
         run: supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
 
+      - name: Verify the existing recipe-signing private secret is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          secret_names="$(supabase secrets list --project-ref "$SUPABASE_PROJECT_ID")"
+          if ! grep -q 'RECIPE_SIGNING_PRIVATE_KEY_PEM' <<< "$secret_names"; then
+            echo "::error::RECIPE_SIGNING_PRIVATE_KEY_PEM is missing in Supabase Edge Function Secrets. Configure it directly in Supabase before deploying."
+            exit 1
+          fi
+
       - name: Merge canonical Admin origin into Edge Function secrets
         run: supabase secrets set --project-ref "$SUPABASE_PROJECT_ID" --yes "ADMIN_ORIGIN=$ADMIN_ORIGIN"
 
