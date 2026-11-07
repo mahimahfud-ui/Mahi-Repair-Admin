@@ -49,7 +49,6 @@ The APK artifact is a debug build using an ephemeral debug keystore. It is not a
 - [ ] Verify the private signing secret exists in Supabase before deployment without logging its value.
 - [ ] Configure the Admin host's server-only `ADMIN_OWNER_EMAIL` value and verify it identifies the existing active Owner Auth user.
 - [ ] Set the existing Owner Supabase Auth password to a random 8–12 digit PIN using Supabase Auth administration; never commit or expose the PIN.
-- [ ] Deploy the new `send-auth-email` Edge Function with JWT verification disabled only for this endpoint; verify Standard Webhooks signature enforcement.
 - [ ] Set `SEND_EMAIL_HOOK_SECRET`, `RESEND_API_KEY`, `BREVO_API_KEY` and `AUTH_EMAIL_FROM` in Supabase Edge Function Secrets; verify sender-domain SPF/DKIM/DMARC at both providers.
 - [ ] Configure and enable the Supabase Send Email Auth Hook at `/functions/v1/send-auth-email`; verify Resend primary delivery and Brevo fallback for Android OTP and Owner invitations. This does not affect Owner PIN sign-in.
 - [ ] Verify the existing Owner Auth account, set `ADMIN_OWNER_EMAIL` server-side, and set the Owner PIN as that account's Supabase Auth password. New profiles intentionally default to Member.
