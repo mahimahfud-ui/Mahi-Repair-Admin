@@ -4,16 +4,22 @@ import { verifyStandardWebhook } from "./standard-webhooks.ts";
 const encoder = new TextEncoder();
 const now = 1_800_000_000;
 
+function toArrayBuffer(value: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(value.byteLength);
+  copy.set(value);
+  return copy.buffer;
+}
+
 async function makeSignature(secretBytes: Uint8Array, body: string, id: string, timestamp: number): Promise<string> {
   const key = await crypto.subtle.importKey(
     "raw",
-    secretBytes,
+    toArrayBuffer(secretBytes),
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"],
   );
   const content = encoder.encode(`${id}.${timestamp}.${body}`);
-  const signature = new Uint8Array(await crypto.subtle.sign("HMAC", key, content));
+  const signature = new Uint8Array(await crypto.subtle.sign("HMAC", key, toArrayBuffer(content)));
   let binary = "";
   signature.forEach((byte) => binary += String.fromCharCode(byte));
   return btoa(binary);
