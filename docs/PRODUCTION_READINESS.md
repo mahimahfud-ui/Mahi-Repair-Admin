@@ -32,7 +32,7 @@ This checklist separates code/CI evidence from checks that must be performed aga
 - [ ] Configure its GitHub `supabase-production` Environment with a required reviewer, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, and `ADMIN_ORIGIN` before the first dispatch.
 
 Current review branches (not merged):
-- Admin Send Email Hook and protected deploy PR #2 includes the HMAC-signed Auth Hook, Resend→Brevo fallback, and manual protected production workflow. [Workflow CI #42356855692](https://github.com/mahimahfud-ui/Mahi-Repair-Admin/actions/runs/42356855692) passed the hook code/type-check/test/build source at commit `9ed694fe86005c6da9ad255c1e96b7d5f582173a`; a follow-up hardens noninteractive CLI flags and verifies the existing signing-secret name before deploy, and is awaiting its CI run.
+- Admin Send Email Hook and protected deploy PR #2 includes the HMAC-signed Auth Hook, Resend→Brevo fallback, and manual protected production workflow. Latest [Admin CI #42357197845](https://github.com/mahimahfud-ui/Mahi-Repair-Admin/actions/runs/42357197845) passed every check at head `0561f103831893410c4ec4c9ee672aff4ac162bf` (Node, Deno type-checks/tests and production build).
 - Android PR #9 restores the missing Recipe v1 unit-test fixture, adds 15-minute best-effort catalogue sync, repairs embedded Admin lockfile/lint issues and reconciles stale setup docs. [Android CI #42356751034](https://github.com/mahimahfud-ui/Mahi-Repair/actions/runs/42356751034) and [embedded Admin CI #42356751017](https://github.com/mahimahfud-ui/Mahi-Repair/actions/runs/42356751017) both passed at current documented head `52285bfda3b6f4d7d1cfb79c5de2e513f7d5b338`.
 
 Production snapshot verified 2026-11-07:
@@ -42,7 +42,7 @@ Production snapshot verified 2026-11-07:
 - The Android/Member end-to-end flow has not yet been proven. Supabase logs contain only earlier unauthenticated 401 probes, not a successful device registration or repair run.
 
 Evidence:
-- [Admin protected deploy workflow CI](https://github.com/mahimahfud-ui/Mahi-Repair-Admin/actions/runs/42356855692)
+- [Admin protected deploy workflow CI](https://github.com/mahimahfud-ui/Mahi-Repair-Admin/actions/runs/42357197845)
 - [Android + embedded Admin CI](https://github.com/mahimahfud-ui/Mahi-Repair/actions/runs/42356751034)
 - [Android PR #9](https://github.com/mahimahfud-ui/Mahi-Repair/pull/9)
 - [Admin PR #2](https://github.com/mahimahfud-ui/Mahi-Repair-Admin/pull/2)
@@ -101,4 +101,4 @@ The APK artifact is a debug build using an ephemeral debug keystore. It is not a
 
 ## Release decision
 
-**NOT PRODUCTION READY.** Admin CI passes on the updated Owner PIN head, but production deployment/configuration, PIN bootstrap, real owner/member/device workflow, signed release artifact, live Realtime/RLS authorization tests and physical-device acceptance remain unverified. Do not merge PR #1 or announce production availability until every required gate above has evidence.
+**NOT PRODUCTION READY.** Admin CI passes on the updated Owner PIN head, but production deployment/configuration, PIN bootstrap, real owner/member/device workflow, signed release artifact, live Realtime/RLS authorization tests and physical-device acceptance remain unverified. Do not merge Admin PR #2 or Android PR #9, or announce production availability, until review and the required production gates above have evidence.
