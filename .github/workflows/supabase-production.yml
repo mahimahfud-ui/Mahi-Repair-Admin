@@ -91,7 +91,7 @@ jobs:
           version: latest
 
       - name: Link production project
-        run: supabase link
+        run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
 
       - name: Verify the existing recipe-signing private secret is present
         shell: bash
