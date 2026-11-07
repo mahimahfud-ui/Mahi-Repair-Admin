@@ -32,7 +32,7 @@ This checklist separates code/CI evidence from checks that must be performed aga
 - [ ] Configure its GitHub `supabase-production` Environment with a required reviewer, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, and `ADMIN_ORIGIN` before the first dispatch.
 
 Current review branches (not merged):
-- Admin Send Email Hook and protected deploy PR #2 includes the HMAC-signed Auth Hook, Resend→Brevo fallback, and manual protected production workflow. Latest [Admin CI #42357197845](https://github.com/mahimahfud-ui/Mahi-Repair-Admin/actions/runs/42357197845) passed every check at head `0561f103831893410c4ec4c9ee672aff4ac162bf` (Node, Deno type-checks/tests and production build).
+- Admin Send Email Hook and protected deploy PR #2 includes the HMAC-signed Auth Hook, Resend→Brevo fallback, a protected manual preview/apply workflow, and commit-SHA locking between dry-run and apply. Latest [Admin CI #42357571946](https://github.com/mahimahfud-ui/Mahi-Repair-Admin/actions/runs/42357571946) passed all checks at head `39d08f2effc4e868d03610fbc317ef87e85215ab` (Node, Deno type-checks/tests and production build).
 - Android PR #9 restores the missing Recipe v1 unit-test fixture, adds 15-minute best-effort catalogue sync, repairs embedded Admin lockfile/lint issues and reconciles stale setup docs. [Android CI #42356751034](https://github.com/mahimahfud-ui/Mahi-Repair/actions/runs/42356751034) and [embedded Admin CI #42356751017](https://github.com/mahimahfud-ui/Mahi-Repair/actions/runs/42356751017) both passed at current documented head `52285bfda3b6f4d7d1cfb79c5de2e513f7d5b338`.
 
 Production snapshot verified 2026-11-07:
