@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { RepairRecipeSchema } from '@/lib/recipe/catalog';
 import { requireOwner } from '@/lib/auth/require-owner';
+import { isConfiguredActiveOwner } from '@/lib/auth/owner-access';
 import { isValidOwnerAuthEmail, isValidOwnerPin } from '@/lib/auth/owner-pin';
 
 const ADMIN_FUNCTIONS = new Set(['admin-invite-member','admin-manage-member','admin-upsert-tool','admin-publish-tool','admin-disable-tool','admin-assign-tool','admin-save-validation','admin-delete-draft-tool','admin-manage-device','admin-manage-tool-state','get-admin-analytics']);
@@ -43,7 +44,7 @@ export async function signInWithOwnerPin(pin: string): Promise<OwnerPinSignInRes
       .eq('id', data.user.id)
       .maybeSingle();
 
-    if (profileError || profile?.role !== 'owner' || profile.status !== 'active') {
+    if (profileError || !isConfiguredActiveOwner(data.user.email, ownerEmail, profile)) {
       await supabase.auth.signOut();
       return { ok: false, reason: 'invalid' };
     }

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { isActiveOwnerProfile } from '@/lib/auth/owner-access';
+import { isConfiguredActiveOwner } from '@/lib/auth/owner-access';
 
 export async function requireOwner() {
   const supabase = await createClient();
@@ -13,7 +13,8 @@ export async function requireOwner() {
     .eq('id', user.id)
     .maybeSingle();
 
-  if (profileError || !isActiveOwnerProfile(profile)) {
+  const configuredOwnerEmail = process.env['ADMIN_OWNER_EMAIL'];
+  if (profileError || !isConfiguredActiveOwner(user.email, configuredOwnerEmail, profile)) {
     redirect('/login?denied=1');
   }
 
