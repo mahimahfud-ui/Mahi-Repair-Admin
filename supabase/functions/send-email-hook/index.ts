@@ -87,16 +87,14 @@ function makeEmail(payload: EmailPayload, supabaseUrl: string): Message | null {
   const tokenNew = (data.token_new ?? "").trim();
   const tokenHashNew = (data.token_hash_new ?? "").trim();
   const redirectTo = (data.redirect_to ?? "").trim();
-  const siteUrl = (data.site_url ?? supabaseUrl).trim();
   const action = (data.email_action_type ?? "magiclink").trim();
 
   if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return null;
   if (!token && !tokenHash && !tokenNew && !tokenHashNew) return null;
   if (!action || action.length > 64) return null;
-  if (!siteUrl.startsWith("https://")) return null;
 
-  const link = tokenHash ? verificationUrl(siteUrl, tokenHash, action, redirectTo) : "";
-  const newLink = tokenHashNew ? verificationUrl(siteUrl, tokenHashNew, action, redirectTo) : "";
+  const link = tokenHash ? verificationUrl(supabaseUrl, tokenHash, action, redirectTo) : "";
+  const newLink = tokenHashNew ? verificationUrl(supabaseUrl, tokenHashNew, action, redirectTo) : "";
   const safeAction = escapeHtml(action.replaceAll("_", " "));
   const safeTo = escapeHtml(to);
   const safeToken = escapeHtml(token);
