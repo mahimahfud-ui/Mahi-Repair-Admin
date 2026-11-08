@@ -1,5 +1,12 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
+const DEFAULT_ADMIN_ORIGIN = 'https://mahi-repair-admin.onrender.com';
+
+function configuredAdminOrigin(): string {
+  const configured = Deno.env.get('ADMIN_ORIGIN')?.trim();
+  return configured || DEFAULT_ADMIN_ORIGIN;
+}
+
 export function normalizeAdminOrigin(configured: string | undefined): string | null {
   if (!configured) return null;
   try {
@@ -26,7 +33,7 @@ export function isAllowedCorsOrigin(origin: string | null, configured: string | 
   }
   if (parsed.origin !== origin || parsed.username !== '' || parsed.password !== '') return false;
 
-  const adminOrigin = normalizeAdminOrigin(configured);
+  const adminOrigin = normalizeAdminOrigin(configuredAdminOrigin());
   if (adminOrigin && origin === adminOrigin) return true;
 
   return parsed.protocol === 'http:' &&
@@ -34,7 +41,7 @@ export function isAllowedCorsOrigin(origin: string | null, configured: string | 
 }
 
 export function requireAdminOrigin(): string {
-  const configured = Deno.env.get('ADMIN_ORIGIN');
+  const configured = configuredAdminOrigin();
   const origin = normalizeAdminOrigin(configured);
   if (!origin) {
     throw Object.assign(
@@ -59,7 +66,7 @@ export function isSameAdminOriginRedirect(candidate: string, adminOrigin: string
 
 export const corsHeaders = (request: Request) => {
   const origin = request.headers.get('origin');
-  const configured = Deno.env.get('ADMIN_ORIGIN');
+  const configured = configuredAdminOrigin();
   const allowed = isAllowedCorsOrigin(origin, configured);
 
   const headers: Record<string, string> = {
