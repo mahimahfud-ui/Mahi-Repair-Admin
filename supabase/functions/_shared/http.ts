@@ -33,7 +33,7 @@ export function isAllowedCorsOrigin(origin: string | null, configured: string | 
   }
   if (parsed.origin !== origin || parsed.username !== '' || parsed.password !== '') return false;
 
-  const adminOrigin = normalizeAdminOrigin(configuredAdminOrigin());
+  const adminOrigin = normalizeAdminOrigin(configured?.trim() || DEFAULT_ADMIN_ORIGIN);
   if (adminOrigin && origin === adminOrigin) return true;
 
   return parsed.protocol === 'http:' &&
