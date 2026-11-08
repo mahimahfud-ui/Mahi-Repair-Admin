@@ -12,6 +12,7 @@ import { z } from 'npm:zod@4';
 
 const Input = z.object({
   email: z.string().email().max(254),
+  display_name: z.string().trim().max(80).optional(),
   redirect_to: z.string().url().optional(),
 }).strict();
 
@@ -27,6 +28,7 @@ Deno.serve(async (req) => {
     }
 
     const email = parsed.data.email.trim().toLowerCase();
+    const displayName = parsed.data.display_name?.trim().slice(0, 80) ?? '';
     const allowedOrigin = requireAdminOrigin();
     let redirectTo = allowedOrigin;
     if (parsed.data.redirect_to) {
@@ -43,7 +45,9 @@ Deno.serve(async (req) => {
     // are committed atomically by the Owner-checked SQL RPC below.
     const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
       redirectTo,
-      data: { role: 'member' },
+      // The role is always assigned by this server endpoint. The optional
+      // display name is user metadata only; it is never used for authorization.
+      data: { role: 'member', ...(displayName ? { name: displayName } : {}) },
     });
     if (error) throw error;
     if (!data.user) throw new Error('Invitation did not return a user record.');
