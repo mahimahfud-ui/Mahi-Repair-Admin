@@ -4,7 +4,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return preflight(req);
   try {
     const { user, admin } = await requireOwner(req);
-    await rateLimit(admin, \`owner-dashboard:\${user.id}\`, 30, 60);
+    await rateLimit(admin, 'owner-dashboard:' + user.id, 30, 60);
 
     const [analyticsResult, toolsResult, profilesResult, devicesResult, runsResult, auditResult] =
       await Promise.all([
