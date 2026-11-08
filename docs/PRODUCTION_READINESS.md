@@ -9,7 +9,7 @@ This document separates verified production state from work that is still blocke
 - Public origin: `https://mahi-repair-admin.onrender.com`.
 - Connected Git branch: `main`; deployed commit: `c7ae4df03f5de3ffea44b03cdbe14dd5cdd4893e`.
 - Deployment `dep-dbo8q6jbc2fs73floqdg` completed successfully and is LIVE.
-- Render health-check path is `/api/health`. On `main` this endpoint still returns an unconditional healthy response. PR #3 replaces it with a no-store configuration-readiness response (200 only when required configuration is present, otherwise 503).
+- Render health-check path is `/api/health`. The endpoint returns a no-store configuration-readiness response: `status=configured` and HTTP 200 only when required values are present; otherwise `status=misconfigured` and HTTP 503. It does not claim to prove remote Supabase availability.
 - The Render log integration currently exposes `app` and `build` logs, but not `request` logs. Route-specific HTTP status codes for `/login` and `/auth/callback` therefore cannot currently be independently verified from Render telemetry.
 
 ### Production environment configuration
