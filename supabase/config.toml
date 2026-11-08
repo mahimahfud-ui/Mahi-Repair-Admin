@@ -12,3 +12,8 @@ site_url = "http://localhost:3000"
 
 [functions.admin-manage-tool-state]
 verify_jwt = true
+
+[functions.send-email-hook]
+# Supabase Auth Send Email hooks authenticate with the Standard Webhooks
+# signature (SEND_EMAIL_HOOK_SECRET), not a Supabase user JWT.
+verify_jwt = false
