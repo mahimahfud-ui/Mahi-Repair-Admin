@@ -1,4 +1,4 @@
-import { isValidOwnerAuthEmail } from '@/lib/auth/owner-pin';
+import { isValidOwnerAuthEmail } from '../auth/owner-pin';
 
 export type ApplicationReadiness = {
   ready: boolean;
