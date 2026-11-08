@@ -30,8 +30,8 @@ The values are intentionally not reproduced in this document. No service-role ke
 - Current database records: 2 profiles, 1 active Owner, 1 active Member, 0 devices, 0 repair tools, 0 published versions, 0 repair runs, and 0 admin audit events.
 
 ### Account boundary
-- Existing Owner: `mahinmhfd@gmail.com`, role `owner`, status `active`.
-- Existing Member: `mahimahfud@gmail.com`, role `member`, status `active`.
+- Existing verified Owner profile: role `owner`, status `active`.
+- Existing verified Member profile: role `member`, status `active`.
 - These identities and roles must remain unchanged. The Member account must never be promoted or used as an Owner fallback.
 - The Owner's successful PIN login has not yet been verified against the live website. Do not treat an active profile as proof of a successful session.
 
