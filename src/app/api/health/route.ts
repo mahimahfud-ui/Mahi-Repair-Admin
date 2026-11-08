@@ -8,7 +8,8 @@ export async function GET() {
 
   return NextResponse.json(
     {
-      status: readiness.ready ? 'healthy' : 'degraded',
+      status: readiness.ready ? 'configured' : 'misconfigured',
+      ready: readiness.ready,
       service: 'mahi-repair-admin',
       checks: readiness.checks,
       timestamp: new Date().toISOString(),
