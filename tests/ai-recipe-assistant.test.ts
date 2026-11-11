@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AiRecipeAssistantInputSchema } from '@/lib/ai/recipe-assistant';
+import { AiRecipeAssistantInputSchema } from '../src/lib/ai/recipe-assistant';
 
 const valid = {
   symptom_description: 'YouTube reports that it cannot reach the internet.',
