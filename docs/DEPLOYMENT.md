@@ -133,7 +133,7 @@ Paste the private key directly into Supabase Edge Function Secrets. Keep it out 
 
 ## 7. Deploy Edge Functions — manual
 
-There are 16 JWT-protected application Edge Function directories in the deployment list below. The separate `send-email-hook` is a Supabase Auth webhook and remains deployed/configured separately with Standard Webhooks signature verification:
+There are 17 JWT-protected application Edge Function directories in the deployment list below. The separate `send-email-hook` is a Supabase Auth webhook and remains deployed/configured separately with Standard Webhooks signature verification:
 
 ~~~text
 admin-assign-tool
