@@ -8,7 +8,8 @@ max_rows = 1000
 
 [auth]
 enabled = true
-site_url = "https://mahi-repair-admin.onrender.com"
+site_url = "https://mahi-repair-admin-yy7c.onrender.com"
+additional_redirect_urls = ["https://mahi-repair-admin-yy7c.onrender.com/**"]
 
 [functions.admin-manage-tool-state]
 verify_jwt = true
