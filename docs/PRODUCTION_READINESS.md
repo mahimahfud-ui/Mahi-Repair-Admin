@@ -1,29 +1,29 @@
-# Mahi Repair — production readiness (verified 8 November 2026)
+# Mahi Repair — production readiness (verified 11 November 2026)
 
 This document separates verified production state from work that is still blocked. A successful deployment or CI run is not an end-to-end acceptance test.
 
 ## Verified production state
 
 ### Admin web service
-- Render service: `mahi-repair-admin` (Singapore, Node.js 22.23.4, Free plan).
-- Public origin: `https://mahi-repair-admin.onrender.com`.
-- Connected Git branch: `main`; deployed commit: `c7ae4df03f5de3ffea44b03cdbe14dd5cdd4893e`.
-- Deployment `dep-dbo8q6jbc2fs73floqdg` completed successfully and is LIVE.
-- Render health-check path is `/api/health`. The endpoint returns a no-store configuration-readiness response: `status=configured` and HTTP 200 only when required values are present; otherwise `status=misconfigured` and HTTP 503. It does not claim to prove remote Supabase availability.
+- Canonical Render service: `mahi-repair-admin` (Singapore, Node.js 22.23.4, Free plan).
+- Actual assigned public origin: `https://mahi-repair-admin-yy7c.onrender.com` (the shorter `mahi-repair-admin.onrender.com` hostname was already reserved by Render).
+- Connected Git repository/branch: `mahimahfud-ui/Mahi-Repair-Admin` / `main`; deployed commit: `f4bc174cc2152fc88d92f0e62b24b981e97f9098`.
+- Deployment `dep-dbq99spkl3bs73es29jg` completed successfully and Render reports the service as LIVE.
+- The app exposes `/api/health` as a no-store configuration-readiness endpoint: `status=configured` and HTTP 200 only when required values are present; otherwise `status=misconfigured` and HTTP 503. This does not prove Supabase connectivity or a successful Owner login. Direct HTTP verification of this generated URL was unavailable during this readiness pass.
 - The Render log integration currently exposes `app` and `build` logs, but not `request` logs. Route-specific HTTP status codes for `/login` and `/auth/callback` therefore cannot currently be independently verified from Render telemetry.
 
 ### Production environment configuration
 The Render service has been configured with:
-- The Supabase project URL for the production project.
-- An enabled Supabase publishable key.
-- Server-only `ADMIN_OWNER_EMAIL` set to the existing Owner Auth email.
+- The Supabase project URL and enabled publishable key.
+- `NEXT_PUBLIC_APP_URL` set to the actual generated Render origin above.
+- Server-only `ADMIN_OWNER_EMAIL` set to the existing Owner Auth identity.
 
 The values are intentionally not reproduced in this document. No service-role key, password, PIN, SMTP credential, private signing key or other secret belongs in a public repository or client build.
 
 ### Supabase backend
 - Project ref: `shwqsljicmhflnvjqjah`; project reports `ACTIVE_HEALTHY`; PostgreSQL 17.
-- All 7 repository migrations are present in the production migration history.
-- All 15 production Edge Functions report `ACTIVE` with JWT verification enabled.
+- The production migration history contains 9 applied migration entries.
+- All 17 production Edge Functions report `ACTIVE`: 16 require JWT verification, while the Supabase Auth `send-email-hook` validates the signed webhook payload itself.
 - RLS is enabled on all 9 public tables and on `realtime.messages`.
 - The public schema has no `anon` table grants; `authenticated` table grants are read-only. The checked security-definer RPCs are executable by `service_role`, not by `anon` or `authenticated`.
 - Private Realtime SELECT policies restrict the Admin broadcast to active Owners and Member broadcasts to an active Member's own non-revoked device topic.
@@ -35,21 +35,24 @@ The values are intentionally not reproduced in this document. No service-role ke
 - These identities and roles must remain unchanged. The Member account must never be promoted or used as an Owner fallback.
 - The Owner's successful PIN login has not yet been verified against the live website. Do not treat an active profile as proof of a successful session.
 
-## Code and CI work in review
+## Integration changes verified 11 November 2026
 
-### Admin PR #3 — draft, not merged
-[PR #3](https://github.com/mahimahfud-ui/Mahi-Repair-Admin/pull/3)
-- Requires the authenticated Supabase user email to match the server-configured Owner email as well as an active Owner profile, for both PIN sign-in and protected server routes.
-- Replaces the unconditional health response with runtime checks for Supabase URL, publishable-key format and configured Owner identity. It does not disclose the values.
-- Adds tests for Owner identity mismatches and degraded/missing runtime configuration.
-- Latest recorded Admin CI run for PR head `1a5fac9442bc2a7cfc1ed6a0c70078897f4386d7` passed. PR remains draft and has not been merged or deployed.
+### Android Member app
+- [Android PR #27](https://github.com/mahimahfud-ui/Mahi-Repair/pull/27) was merged to `main` as `c6c495aeac2058055ba88ca5b761914c69a300be`.
+- The Android app no longer contains an Owner Admin screen, route, Settings entry or privileged Owner API client. Owner management remains in the separate Admin repository.
+- Android CI, Backend CI and the legacy Admin scaffold CI passed for the PR head. Android unit tests and the debug APK assembly/upload completed successfully.
+- A 24 MB debug APK artifact was produced. It uses an ephemeral CI debug keystore; no production release-signed APK/AAB has been produced or verified.
 
-### Android PR #13 — draft, not merged
-[PR #13](https://github.com/mahimahfud-ui/Mahi-Repair/pull/13)
-- Fixes the known Kotlin compile errors in signature-verification and history UI code, and removes an unused legacy dialog that referenced a deleted ViewModel method.
-- Populates Android `.env.example` with the public Supabase project URL/publishable key and the repository's RSA-3072 public key. Private signing material is not included.
-- The optional legacy Mahi API endpoints remain fail-closed placeholders because no production Mahi API service is deployed.
-- The latest Android CI build for the updated head is still pending. The main branch's previously inspected Android CI was failing. No production-signed APK/AAB has been produced or verified.
+### Standalone Owner Console
+- A new Render Free service was created from this repository's `main` branch; the legacy `mahi-repair-admin-preview` service still points to the Android repository's old embedded Admin directory and is not the canonical Owner Console.
+- The canonical Admin URL is `https://mahi-repair-admin-yy7c.onrender.com`.
+- Render build log confirms the Next.js production build, TypeScript check and server startup completed; Render reports the service LIVE.
+- The Owner Console uses the same Supabase project as the Android app. Its Owner PIN sign-in and live Member invitation flow have not yet been exercised.
+
+### Invitation redirect origin
+- Supabase `admin-invite-member` is active at version 6 and still requires JWT verification.
+- Its canonical Owner Console origin is now fixed to the generated Render hostname. The corresponding source-of-truth update and regression test are in review in the Admin repository.
+- Supabase Auth redirect allowlist must include the canonical Admin HTTPS URL before sending real Member invitations.
 
 ## Remaining production blockers
 
@@ -94,6 +97,6 @@ The values are intentionally not reproduced in this document. No service-role ke
 
 Verified: the Admin service is LIVE, production Supabase schema/migrations/functions are provisioned, database RLS and account roles are intact, and the Admin hardening PR CI passes.
 
-Blocked/unverified: the Android CI result for the latest fix, release APK/AAB signing, production signing-key match, actual Owner PIN sign-in, Member email delivery, real device enrolment, published signed tool, repair-report end-to-end flow, physical-device acceptance, and optional remote-support API.
+Blocked/unverified: direct HTTP/health verification of the generated Admin URL from this session, actual Owner PIN sign-in, Supabase Auth redirect allowlist verification, Member email delivery, production RSA private/public-key match, production release APK/AAB signing, real device enrolment, a published signed tool, repair-report end-to-end flow, physical-device acceptance, and optional remote-support API.
 
 Do not merge release code, publish a repair tool, or announce full production readiness until these gates have concrete evidence.
