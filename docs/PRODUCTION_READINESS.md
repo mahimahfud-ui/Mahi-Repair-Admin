@@ -9,7 +9,7 @@ This document separates verified production state from work that is still blocke
 - Actual assigned public origin: `https://mahi-repair-admin-yy7c.onrender.com` (the shorter `mahi-repair-admin.onrender.com` hostname was already reserved by Render).
 - Connected Git repository/branch: `mahimahfud-ui/Mahi-Repair-Admin` / `main`; deployed commit: `f4bc174cc2152fc88d92f0e62b24b981e97f9098`.
 - Deployment `dep-dbq99spkl3bs73es29jg` completed successfully and Render reports the service as LIVE.
-- The app exposes `/api/health` as a no-store configuration-readiness endpoint: `status=configured` and HTTP 200 only when required values are present; otherwise `status=misconfigured` and HTTP 503. This does not prove Supabase connectivity or a successful Owner login. Direct HTTP verification of this generated URL was unavailable during this readiness pass.
+- The app exposes `/api/health` as a no-store configuration-readiness endpoint: `status=configured` and HTTP 200 only when required values are present; otherwise `status=misconfigured` and HTTP 503. A live fetch on 11 November 2026 returned `ready=true` with Supabase URL, publishable-key format and Owner identity checks all true. A live fetch of `/login` also confirmed the PIN login page loads. This does not prove a successful Supabase database request or Owner PIN authentication.
 - The Render log integration currently exposes `app` and `build` logs, but not `request` logs. Route-specific HTTP status codes for `/login` and `/auth/callback` therefore cannot currently be independently verified from Render telemetry.
 
 ### Production environment configuration
@@ -51,8 +51,9 @@ The values are intentionally not reproduced in this document. No service-role ke
 
 ### Invitation redirect origin
 - Supabase `admin-invite-member` is active at version 6 and still requires JWT verification.
-- Its canonical Owner Console origin is now fixed to the generated Render hostname. The corresponding source-of-truth update and regression test are in review in the Admin repository.
-- Supabase Auth redirect allowlist must include the canonical Admin HTTPS URL before sending real Member invitations.
+- Its canonical Owner Console origin is fixed to the generated Render hostname. [Admin PR #11](https://github.com/mahimahfud-ui/Mahi-Repair-Admin/pull/11) merged to `main` as `d6879d7cb0c5a2d939ffce0632d02c61c562e49f`; the shared CORS/redirect helper and regression tests reject the retired host and untrusted origins.
+- The 12 Owner Admin Edge Functions currently used/retained by this integration are active, require JWT verification, and use the canonical Admin origin for CORS/redirect checks (the Send Email Auth Hook is the only JWT-disabled hook and verifies its webhook signature).
+- The repository's `supabase/config.toml` now records the canonical `site_url` and redirect pattern. The live Supabase Auth URL configuration is not exposed by the connected Supabase management actions; verify/set it in [Supabase Auth URL Configuration](https://supabase.com/dashboard/project/shwqsljicmhflnvjqjah/auth/url-configuration) before sending real Member invitations.
 
 ## Remaining production blockers
 
@@ -97,6 +98,6 @@ The values are intentionally not reproduced in this document. No service-role ke
 
 Verified: the Admin service is LIVE, production Supabase schema/migrations/functions are provisioned, database RLS and account roles are intact, and the Admin hardening PR CI passes.
 
-Blocked/unverified: direct HTTP/health verification of the generated Admin URL from this session, actual Owner PIN sign-in, Supabase Auth redirect allowlist verification, Member email delivery, production RSA private/public-key match, production release APK/AAB signing, real device enrolment, a published signed tool, repair-report end-to-end flow, physical-device acceptance, and optional remote-support API.
+Blocked/unverified: actual Owner PIN sign-in, live Supabase Auth redirect allowlist configuration, Member invitation/OTP email delivery, production RSA private/public-key match, production release APK/AAB signing, real device enrolment, a published signed tool, repair-report end-to-end flow, physical-device acceptance, and optional remote-support API.
 
 Do not merge release code, publish a repair tool, or announce full production readiness until these gates have concrete evidence.
