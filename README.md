@@ -51,11 +51,11 @@ The Admin website and Android client in [mahimahfud-ui/Mahi-Repair](https://gith
 
 - Owner web path: the Owner enters an 8–12 digit PIN; a server action authenticates against the existing Supabase Auth Owner account using the server-only `ADMIN_OWNER_EMAIL`, then verifies `profiles.role='owner' AND status='active'`. The Owner login page does not request or send an email, OTP or Magic Link.
 - Android member path: Supabase email OTP → device registration → authorized published-recipe retrieval → on-device RSA signature verification → native allowlisted action execution → run-report submission. Member invitations and Android OTP remain separate member-onboarding email flows.
-- Admin operations: member invitations/status, device revoke/restore, recipe drafting/validation/publication, tool state and assignment, analytics, audit records and execution logs.
+- Admin operations: member invitations/status, device revoke/restore, AI-assisted recipe draft generation, recipe validation/publication, tool state and assignment, analytics, audit records and execution logs.
 - Report retries: Android reuses the same run_id as the `repair_runs.id` primary key; a SHA-256 fingerprint makes identical retries idempotent and rejects altered content or a different member reusing the UUID.
 - Live updates: private Realtime broadcasts send only opaque event IDs to each authorized Android device and the active Owner Admin Console. Clients refetch through authenticated server endpoints; Realtime payloads never contain recipes or authorization decisions.
 
-See [Android API contract](docs/ANDROID_API_CONTRACT.md), [security model](docs/SECURITY_MODEL.md) and [manual deployment guide](docs/DEPLOYMENT.md).
+See [Android API contract](docs/ANDROID_API_CONTRACT.md), [security model](docs/SECURITY_MODEL.md), [AI Recipe Assistant](docs/AI_RECIPE_ASSISTANT.md) and [manual deployment guide](docs/DEPLOYMENT.md).
 
 ## Security boundaries
 

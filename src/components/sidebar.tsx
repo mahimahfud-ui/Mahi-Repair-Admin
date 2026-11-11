@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import { BookOpen, Boxes, ChartNoAxesCombined, ClipboardList, Code2, FlaskConical, Gauge, Settings2, ShieldCheck, Users, UploadCloud, History, Cloud } from 'lucide-react';
+import { BookOpen, Boxes, ChartNoAxesCombined, ClipboardList, Code2, FlaskConical, Gauge, Settings2, ShieldCheck, Users, UploadCloud, History, Cloud, Sparkles } from 'lucide-react';
 export const navItems = [
-  ['Overview','/',Gauge],['Repair Tool Library','/tools',Boxes],['Create New Tool','/tools/new',BookOpen],['Script Editor','/editor',Code2],['Test Lab','/test-lab',FlaskConical],['Members & Devices','/members',Users],['Publishing Center','/publishing',UploadCloud],['Version Control','/versions',History],['Repair Logs','/logs',ClipboardList],['Analytics','/analytics',ChartNoAxesCombined],['Security & Settings','/security',Settings2],
+  ['Overview','/',Gauge],['AI Recipe Assistant','/assistant',Sparkles],['Repair Tool Library','/tools',Boxes],['Create New Tool','/tools/new',BookOpen],['Script Editor','/editor',Code2],['Test Lab','/test-lab',FlaskConical],['Members & Devices','/members',Users],['Publishing Center','/publishing',UploadCloud],['Version Control','/versions',History],['Repair Logs','/logs',ClipboardList],['Analytics','/analytics',ChartNoAxesCombined],['Security & Settings','/security',Settings2],
 ] as const;
 export function Sidebar({ active='/' }: { active?: string }) {
  return <aside className="hidden lg:flex w-[252px] shrink-0 border-r border-[#252830] bg-[#0d0f13] flex-col min-h-screen">

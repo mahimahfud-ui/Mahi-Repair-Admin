@@ -119,6 +119,8 @@ Configure these custom secrets directly in Supabase Dashboard → Edge Function 
 
 - ADMIN_ORIGIN: the exact canonical HTTPS origin of the deployed Admin website, for example https://admin.example.com. No path, query, credentials or trailing slash.
 - RECIPE_SIGNING_PRIVATE_KEY_PEM: an RSA-3072 PKCS#8 private key in PEM format.
+- GEMINI_API_KEY: Gemini Developer API key used only by the Owner-only `admin-generate-repair-recipe` Edge Function. Store it only in Supabase Edge Function Secrets; it is never read by the browser or Render app.
+- GEMINI_MODEL: optional model override. Defaults to `gemini-3.8-flash`; only set a model name supported by the Gemini Developer API.
 
 Generate the key pair on a trusted machine if one has not already been created:
 
@@ -131,7 +133,7 @@ Paste the private key directly into Supabase Edge Function Secrets. Keep it out 
 
 ## 7. Deploy Edge Functions — manual
 
-There are 15 Edge Function directories in supabase/functions/:
+There are 16 JWT-protected application Edge Function directories in the deployment list below. The separate `send-email-hook` is a Supabase Auth webhook and remains deployed/configured separately with Standard Webhooks signature verification:
 
 ~~~text
 admin-assign-tool
@@ -141,10 +143,12 @@ admin-invite-member
 admin-manage-device
 admin-manage-member
 admin-manage-tool-state
+admin-generate-repair-recipe
 admin-publish-tool
 admin-save-validation
 admin-upsert-tool
 get-admin-analytics
+get-admin-dashboard
 get-my-repair-tools
 get-signed-repair-tool
 register-device
@@ -158,7 +162,7 @@ for function in \
   admin-assign-tool admin-delete-draft-tool admin-disable-tool \
   admin-invite-member admin-manage-device admin-manage-member \
   admin-manage-tool-state admin-publish-tool admin-save-validation \
-  admin-upsert-tool get-admin-analytics get-my-repair-tools \
+  admin-upsert-tool admin-generate-repair-recipe get-admin-analytics get-admin-dashboard get-my-repair-tools \
   get-signed-repair-tool register-device submit-repair-run
 do
   supabase functions deploy "$function" --project-ref shwqsljicmhflnvjqjah

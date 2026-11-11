@@ -13,6 +13,10 @@ site_url = "https://mahi-repair-admin.onrender.com"
 [functions.admin-manage-tool-state]
 verify_jwt = true
 
+[functions.admin-generate-repair-recipe]
+# Gemini recipe generation is callable only with a valid Supabase user JWT and active Owner profile.
+verify_jwt = true
+
 [functions.send-email-hook]
 # Supabase Auth Send Email hooks authenticate with the Standard Webhooks
 # signature (SEND_EMAIL_HOOK_SECRET), not a Supabase user JWT.
