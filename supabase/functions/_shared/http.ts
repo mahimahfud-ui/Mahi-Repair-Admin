@@ -1,10 +1,11 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
-const DEFAULT_ADMIN_ORIGIN = 'https://mahi-repair-admin.onrender.com';
+const DEFAULT_ADMIN_ORIGIN = 'https://mahi-repair-admin-yy7c.onrender.com';
 
 function configuredAdminOrigin(): string {
-  const configured = Deno.env.get('ADMIN_ORIGIN')?.trim();
-  return configured || DEFAULT_ADMIN_ORIGIN;
+  // This deployment has one canonical Owner Console origin. Ignore stale
+  // ADMIN_ORIGIN values so invite links cannot target a retired Render service.
+  return DEFAULT_ADMIN_ORIGIN;
 }
 
 export function normalizeAdminOrigin(configured: string | undefined): string | null {
