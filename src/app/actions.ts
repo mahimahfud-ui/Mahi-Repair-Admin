@@ -3,11 +3,12 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { RepairRecipeSchema } from '@/lib/recipe/catalog';
+import { AiRecipeAssistantInputSchema } from '@/lib/ai/recipe-assistant';
 import { requireOwner } from '@/lib/auth/require-owner';
 import { isConfiguredActiveOwner } from '@/lib/auth/owner-access';
 import { isValidOwnerAuthEmail, isValidOwnerPin } from '@/lib/auth/owner-pin';
 
-const ADMIN_FUNCTIONS = new Set(['admin-invite-member','admin-manage-member','admin-upsert-tool','admin-publish-tool','admin-disable-tool','admin-assign-tool','admin-save-validation','admin-delete-draft-tool','admin-manage-device','admin-manage-tool-state','get-admin-analytics']);
+const ADMIN_FUNCTIONS = new Set(['admin-invite-member','admin-manage-member','admin-upsert-tool','admin-publish-tool','admin-disable-tool','admin-assign-tool','admin-save-validation','admin-delete-draft-tool','admin-manage-device','admin-manage-tool-state','get-admin-analytics','admin-generate-repair-recipe']);
 
 export type OwnerPinSignInResult =
   | { ok: false; reason: 'invalid' | 'rate_limited' | 'configuration' | 'failed' };
@@ -62,6 +63,35 @@ export async function invokeAdminFunction(functionName: string, body: Record<str
   const { data, error } = await supabase.functions.invoke(functionName, { body });
   if (error) throw new Error(error.message); return data;
 }
+export async function generateAiRecipeDraft(input: unknown) {
+  const parsed = AiRecipeAssistantInputSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join('\n'));
+  }
+  const response: unknown = await invokeAdminFunction(
+    'admin-generate-repair-recipe',
+    parsed.data as Record<string, unknown>,
+  );
+  if (typeof response !== 'object' || response === null || !('data' in response)) {
+    throw new Error('The AI recipe service returned an invalid response.');
+  }
+  const payload = (response as { data?: unknown }).data;
+  if (typeof payload !== 'object' || payload === null || !('recipe' in payload)) {
+    throw new Error('The AI recipe service did not return a recipe draft.');
+  }
+  const result = payload as { recipe: unknown; model?: unknown };
+  const checked = RepairRecipeSchema.safeParse(result.recipe);
+  if (!checked.success) {
+    throw new Error('The AI recipe response did not pass the local recipe contract.');
+  }
+  return {
+    recipe: checked.data,
+    model: typeof result.model === 'string' ? result.model : 'configured Gemini model',
+    saved: false as const,
+    published: false as const,
+  };
+}
+
 export async function createTool(formData: FormData) {
   await requireOwner();
   const name = String(formData.get('name') ?? '').trim(); const slug = String(formData.get('slug') ?? '').trim();
