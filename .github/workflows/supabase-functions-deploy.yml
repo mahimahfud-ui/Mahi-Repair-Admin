@@ -100,9 +100,9 @@ jobs:
           {
             echo "## Supabase Edge Functions deployment"
             echo
-            echo "- Project: `$SUPABASE_PROJECT_ID`"
-            echo "- Source commit: `$GITHUB_SHA`"
-            echo "- Scope: `supabase/functions/**` only"
+            echo "- Project: $SUPABASE_PROJECT_ID"
+            echo "- Source commit: $GITHUB_SHA"
+            echo "- Scope: supabase/functions/** only"
             echo "- Database migrations, Storage buckets, Auth settings and secrets were not changed."
             echo "- Render Admin hosting was not redeployed by this workflow."
           } >> "$GITHUB_STEP_SUMMARY"
