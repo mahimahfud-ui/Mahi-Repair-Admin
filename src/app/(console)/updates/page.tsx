@@ -25,7 +25,7 @@ export default async function UpdatesPage({
     >
       {params.published === '1' ? (
         <div role="status" className="panel mb-5 border border-emerald-500/30 p-4 text-sm text-emerald-200">
-          Signed release published. Android accepts a release only after device authorization and RSA-SHA256 verification. Native APK installation always opens Android's installer and requires the device user's approval.
+          Signed release published. Android accepts a release only after device authorization and RSA-SHA256 verification. Native APK installation opens the system installer and requires approval on the device.
         </div>
       ) : null}
 
