@@ -1,0 +1,110 @@
+name: Deploy Supabase Edge Functions (manual production)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_production:
+        description: "Type DEPLOY to publish supabase/functions to production project shwqsljicmhflnvjqjah"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-production-edge-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Verify source and deploy Edge Functions only
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      SUPABASE_ACCESS_TOKEN_PRESENT: ${{ secrets.SUPABASE_ACCESS_TOKEN != '' }}
+      SUPABASE_PROJECT_ID: shwqsljicmhflnvjqjah
+    steps:
+      - name: Checkout reviewed source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Confirm explicit production deployment
+        shell: bash
+        env:
+          CONFIRM_PRODUCTION: ${{ inputs.confirm_production }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "::error::Production deployment can only run from main."
+            exit 1
+          fi
+          if [[ "$CONFIRM_PRODUCTION" != "DEPLOY" ]]; then
+            echo "::error::Type DEPLOY in the workflow confirmation field."
+            exit 1
+          fi
+          if [[ "$SUPABASE_ACCESS_TOKEN_PRESENT" != "true" ]]; then
+            echo "::error::Add SUPABASE_ACCESS_TOKEN under repository Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          test -f supabase/config.toml
+          test -d supabase/functions
+          echo "Source and production target preflight passed."
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.23.4
+          cache: npm
+
+      - name: Install Admin validation dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify Admin source and contracts
+        run: |
+          npm run check:scaffold
+          npm run typecheck
+          npm run lint
+          npm run test
+          npm run build
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Verify Edge Function source
+        run: |
+          deno check supabase/functions/*/index.ts
+          deno test --allow-read=contract-tests/repair-recipe-v1.json supabase/functions/_shared/
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+        with:
+          version: latest
+
+      - name: Deploy current Edge Functions to the existing Supabase project
+        shell: bash
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          supabase functions deploy --project-ref "$SUPABASE_PROJECT_ID" --use-api
+
+      - name: Publish deployment summary
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo "## Supabase Edge Functions deployment"
+            echo
+            echo "- Project: $SUPABASE_PROJECT_ID"
+            echo "- Source commit: $GITHUB_SHA"
+            echo "- Scope: supabase/functions/** only"
+            echo "- Database migrations, Storage buckets, Auth settings and secrets were not changed."
+            echo "- Render Admin hosting was not redeployed by this workflow."
+          } >> "$GITHUB_STEP_SUMMARY"
