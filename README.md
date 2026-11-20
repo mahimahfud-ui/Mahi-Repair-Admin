@@ -55,7 +55,7 @@ The Admin website and Android client in [mahimahfud-ui/Mahi-Repair](https://gith
 - Report retries: Android reuses the same run_id as the `repair_runs.id` primary key; a SHA-256 fingerprint makes identical retries idempotent and rejects altered content or a different member reusing the UUID.
 - Live updates: private Realtime broadcasts send only opaque event IDs to each authorized Android device and the active Owner Admin Console. Clients refetch through authenticated server endpoints; Realtime payloads never contain recipes or authorization decisions.
 
-See [Android API contract](docs/ANDROID_API_CONTRACT.md), [security model](docs/SECURITY_MODEL.md), [Render deployment guide](docs/RENDER_DEPLOYMENT.md) and [manual GitHub → Supabase Edge Function deployment guide](docs/SUPABASE_GITHUB_DEPLOY.md).
+See [Android API contract](docs/ANDROID_API_CONTRACT.md), [security model](docs/SECURITY_MODEL.md) and [manual deployment guide](docs/DEPLOYMENT.md).
 
 ## Security boundaries
 
