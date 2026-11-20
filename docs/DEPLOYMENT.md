@@ -1,31 +1,41 @@
-# Mahi Repair Admin — build and manual deployment
+# Mahi Repair Admin — production deployment and operations
 
-## 1. Actual repository structure
+This guide describes the current standalone Owner website and its shared Supabase backend. The Android Member application is maintained in the separate [Mahi-Repair repository](https://github.com/mahimahfud-ui/Mahi-Repair).
 
-The Next.js application lives at the repository root. Run every command in this guide from the directory containing package.json.
+For current evidence and the remaining production acceptance gates, read [CURRENT_PRODUCTION_HANDOVER.md](CURRENT_PRODUCTION_HANDOVER.md) first.
 
-~~~text
-.
-├── package.json
-├── package-lock.json
-├── .nvmrc
-├── src/
-├── supabase/
-│   ├── config.toml
-│   ├── functions/
-│   └── migrations/
-├── schemas/
-├── tests/
-├── contract-tests/
-├── android-contract/
-└── docs/
-~~~
+## 1. Canonical architecture and deployment
 
-There is no admin-panel/ directory, no checked-in Dockerfile, and no checked-in Render/Cloud Run deployment configuration in this repository. Do not prefix commands with cd admin-panel.
+| Component | Current contract |
+|---|---|
+| Owner website | This repository, standalone Next.js app |
+| Android Member app | [Mahi-Repair](https://github.com/mahimahfud-ui/Mahi-Repair) |
+| Shared backend | Supabase project `shwqsljicmhflnvjqjah` |
+| Supabase region | `ap-south-1` |
+| Canonical Admin origin | `https://mahi-repair-admin-yy7c.onrender.com` |
+| Owner login | `https://mahi-repair-admin-yy7c.onrender.com/login` |
+| Render service definition | Root [render.yaml](../render.yaml) |
 
-## 2. Runtime and local setup
+The shorter `mahi-repair-admin.onrender.com` hostname is not the canonical origin. Do not copy old preview URLs or the retired embedded-Admin service URL into Supabase Auth redirects or Edge Function CORS settings.
 
-Use Node.js 22.23.4, pinned in .nvmrc and the package.json engines field.
+The checked-in Render Blueprint declares:
+
+- Service: `mahi-repair-admin`
+- Repository: `mahimahfud-ui/Mahi-Repair-Admin`
+- Branch: `main`
+- Runtime: Node.js
+- Region: Singapore
+- Plan: Free
+- Build: `npm ci --no-audit --no-fund && npm run build`
+- Start: `npm run start`
+- Health check: `/api/health`
+- Auto-deploy: `checksPass`
+
+This is the repository's declared hosting configuration. Verify the actual Render service, latest deployed commit SHA, environment and live health endpoint in the Render dashboard before claiming that a deployment is current.
+
+## 2. Local setup
+
+Use Node.js 22.23.4, pinned in `.nvmrc` and `package.json`.
 
 ~~~bash
 node --version
@@ -34,22 +44,27 @@ cp .env.example .env.local
 npm run dev
 ~~~
 
-Windows PowerShell copy command:
+Windows PowerShell:
 
 ~~~powershell
 Copy-Item .env.example .env.local
 ~~~
 
-Configure only the browser-safe project values in .env.local:
+Configure browser-safe values locally:
 
 ~~~env
 NEXT_PUBLIC_SUPABASE_URL=https://shwqsljicmhflnvjqjah.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=YOUR_PROJECT_PUBLISHABLE_KEY
-# Do not add the Owner Auth identifier here as a browser variable.
-# Set ADMIN_OWNER_EMAIL separately in the server-only hosting environment.
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 ~~~
 
-The publishable key is designed for browser use and is not a privileged credential. Set `ADMIN_OWNER_EMAIL` separately as a server-only environment variable on Render; never prefix it with `NEXT_PUBLIC_`. The Owner PIN is the existing Auth account password and must not be stored in an environment file. Never add SUPABASE_SERVICE_ROLE_KEY, database passwords, access tokens or the recipe-signing private key to source control, browser bundles or Android resources.
+The Owner Auth identifier belongs only in the server-side host environment:
+
+~~~env
+ADMIN_OWNER_EMAIL=THE_EXISTING_OWNER_AUTH_EMAIL
+~~~
+
+Never put an Owner PIN, Supabase service-role/secret key, database password, access token, email-provider credential or RSA private signing key in source control, browser variables, Android resources or chat.
 
 ## 3. Verify the website build
 
@@ -65,145 +80,187 @@ npm run build
 npm run start
 ~~~
 
-The hosting provider must use Node.js 22.23.4, install from the root package-lock.json, run npm ci, build with npm run build, and start with npm run start. Configure its assigned port through the platform's standard PORT environment variable. The current Render Web Service is `mahi-repair-admin`, tracks branch `integration/connect-shared-supabase`, and serves the preview at https://mahi-repair-admin.onrender.com. The service is configured outside this repository; CI does not deploy Supabase changes.
+The GitHub CI workflow validates repository code. It does not deploy Supabase migrations, Edge Functions, secrets or production data.
 
-## 4. Supabase project and Owner PIN authentication — manual
+## 4. Render environment and health
 
-The existing project reference is `shwqsljicmhflnvjqjah`. Confirm it is the intended project before using the CLI.
+The Render service should use the repository root and the commands declared in `render.yaml`.
 
-1. Install/use the Supabase CLI and authenticate interactively with `supabase login`.
-2. Link this local checkout: `supabase link --project-ref shwqsljicmhflnvjqjah`.
-3. Verify the intended Owner has an existing Supabase Auth account and an active `public.profiles` row with `role='owner'` and `status='active'`. New Auth users default to Member.
-4. Set `ADMIN_OWNER_EMAIL` only in the Admin host's server-side environment. It is an internal identifier for the existing Owner account and is never shown in the browser.
-5. Set the existing Owner Auth account password to a random 8–12 digit numeric PIN using Supabase Auth administration. Do not use a birthday, phone number, repeated digits or a predictable sequence. Do not paste the PIN into GitHub, source code or this chat.
-6. Keep Supabase Auth password/token endpoint rate limits enabled. The server action submits the PIN through `signInWithPassword`, then checks the database profile. A failed, missing, suspended or Member profile is denied and the temporary Auth session is signed out.
-7. Every protected console request still calls `requireOwner()`; every privileged Server Action calls the same server-side guard and invokes an allowlisted authenticated Edge Function.
+Required environment values:
 
-The Owner login UI has no email field, Magic Link button, OTP request or email-sending cooldown. It uses the normal Supabase Auth password session for the existing Owner account; Owner authorization is never inferred from the PIN alone.
+| Variable | Scope | Purpose |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Browser-safe | Shared Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Browser-safe | Supabase publishable client key |
+| `NEXT_PUBLIC_APP_URL` | Browser-safe | Exact canonical Admin origin, no trailing slash |
+| `ADMIN_OWNER_EMAIL` | Server-only | Existing Owner Auth identity; never use the `NEXT_PUBLIC_` prefix |
 
-Member onboarding is separate: the Owner's `admin-invite-member` operation sends an invitation email, and Android Members use the existing six-digit Supabase Auth OTP flow. Configure and verify a production custom SMTP provider, sender-domain SPF/DKIM/DMARC and inbox delivery only for those member email flows. The Owner PIN login does not depend on SMTP.
+The `/api/health` endpoint reports whether required configuration values are present. It does not prove that Owner authentication succeeds, that database queries work, or that email delivery and recipe signing are ready.
 
-## 5. PostgreSQL migrations — manual, separately approved
+After deployment, verify:
 
-The checked-in migrations are applied in timestamp order:
+1. The production site and `/login` load over HTTPS.
+2. `/api/health` returns HTTP 200 and `ready: true`.
+3. The deployed commit SHA matches the intended reviewed `main` commit.
+4. Owner PIN login succeeds and Member identities are denied from Owner-only routes.
+5. Server logs do not expose PINs, tokens, email credentials or signing material.
 
-- 20261105171141_202611050001_initial_schema.sql
-- 20261105171330_20261105180000_harden_rls_grants_and_indexes.sql
-- 20261105171827_20261105183000_deny_browser_rate_limit_access.sql
-- 20261106170418_private_realtime_catalog_broadcast.sql
-- 20261106170438_backend_report_idempotency_and_atomic_catalog.sql
-- 20261106170450_transactional_admin_mutations_audit.sql
-- 20261106170509_atomic_member_catalog_and_device_registration.sql
+## 5. Owner PIN authentication
 
-Review the SQL and target project before applying anything. The following is a manual operator procedure, not an automated GitHub workflow:
+The Owner enters an 8–12 digit numeric PIN. The server action uses the server-only `ADMIN_OWNER_EMAIL` to authenticate against the existing Supabase Auth account with `signInWithPassword`, then verifies that the matching `public.profiles` row has:
 
-~~~bash
-supabase db push --dry-run
-~~~
+- `role = 'owner'`
+- `status = 'active'`
 
-Inspect the pending migration list and confirm it targets the intended project. Only after a separate explicit production-change approval should an operator run:
+The PIN is the existing Owner Auth account password. It is not stored in this repository, an environment file, browser storage or the Android app. Configure or rotate it directly through the approved Supabase Auth administration path. Use a random PIN and keep Auth rate limits enabled.
 
-~~~bash
-supabase db push
-~~~
+Every protected console page and privileged server action must continue to enforce the server-side Owner guard. Never infer Owner authority from a local UI flag, a client-supplied role, or a Member account.
 
-Do not run this command as part of ordinary application CI. Do not assume that a migration present in Git has already been applied to Supabase.
+## 6. Supabase project, migrations and Edge Functions
 
-The migrations enable RLS and remove browser write grants. Authenticated browser access is read-only; data-changing operations use the server-verified Edge Functions and service-role privileges. The rate-limit table is moved to the private schema and its RPC is not executable by browser roles. The report migration stores Android `run_id` directly as the existing `repair_runs.id` primary key and adds a SHA-256 `request_fingerprint`; a separate `run_id` column is not required. Atomic report/catalog/device RPCs revalidate member, device, assignment, publication, version and compatibility state under row locks.
+The canonical project is `shwqsljicmhflnvjqjah` in `ap-south-1`. Before any database change:
 
-## 6. Edge Function secrets and recipe-signing key — manual
+1. Confirm the project reference and production target.
+2. Inspect the live migration history.
+3. Compare it with the checked-in migration files.
+4. Review the SQL and RLS consequences.
+5. Use a development/staging branch for migration tests where possible.
+6. Obtain explicit production-change approval before applying a production migration.
 
-Supabase automatically injects the reserved Edge Function values SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY. Do not create custom secrets with the reserved SUPABASE_ prefix and do not copy the service-role key out of Supabase.
+The production inspection on 20 November 2026 found these nine applied migrations:
 
-Configure these custom secrets directly in Supabase Dashboard → Edge Function Secrets:
+- `20261105171141_202611050001_initial_schema.sql`
+- `20261105171330_20261105180000_harden_rls_grants_and_indexes.sql`
+- `20261105171827_20261105183000_deny_browser_rate_limit_access.sql`
+- `20261106170418_private_realtime_catalog_broadcast.sql`
+- `20261106170438_backend_report_idempotency_and_atomic_catalog.sql`
+- `20261106170450_transactional_admin_mutations_audit.sql`
+- `20261106170509_atomic_member_catalog_and_device_registration.sql`
+- `20261108161813_device_intelligence_telemetry.sql`
+- `20261108162722_device_tool_syncs_tool_version_index.sql`
 
-- ADMIN_ORIGIN: the exact canonical HTTPS origin of the deployed Admin website, for example https://admin.example.com. No path, query, credentials or trailing slash.
-- RECIPE_SIGNING_PRIVATE_KEY_PEM: an RSA-3072 PKCS#8 private key in PEM format.
+The same inspection found 17 ACTIVE production Edge Functions:
 
-Generate the key pair on a trusted machine if one has not already been created:
+- `admin-assign-tool`
+- `admin-delete-draft-tool`
+- `admin-disable-tool`
+- `admin-invite-member`
+- `admin-manage-device`
+- `admin-manage-member`
+- `admin-manage-tool-state`
+- `admin-publish-tool`
+- `admin-save-validation`
+- `admin-upsert-tool`
+- `get-admin-analytics`
+- `get-admin-dashboard`
+- `get-my-repair-tools`
+- `get-signed-repair-tool`
+- `register-device`
+- `send-email-hook`
+- `submit-repair-run`
 
-~~~bash
-openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out recipe-signing-private.pem
-openssl pkey -in recipe-signing-private.pem -pubout -out recipe-signing-public.pem
-~~~
+All 17 were reported ACTIVE at inspection time. Sixteen require JWT verification; `send-email-hook` has JWT verification disabled because it validates the signed Supabase Auth webhook signature. Re-check current production state before each release; function ACTIVE status alone does not prove end-to-end behavior.
 
-Paste the private key directly into Supabase Edge Function Secrets. Keep it out of GitHub, Render, browser variables and Android. Only the matching public key may be configured in the Android release build. The repository's placeholder public key is not a production key.
+The public schema had nine tables with RLS enabled. The live database contained one active Owner profile and one active Member profile, but no registered devices, repair tools, published tool versions, repair runs or audit events at the time of inspection.
 
-## 7. Deploy Edge Functions — manual
+Do not run `supabase db push`, apply a migration, reset a branch or redeploy all functions as a generic troubleshooting step. Do not assume a local migration is already applied or that an applied migration should be applied again.
 
-There are 15 Edge Function directories in supabase/functions/:
+## 7. Edge Function secrets and recipe signing
 
-~~~text
-admin-assign-tool
-admin-delete-draft-tool
-admin-disable-tool
-admin-invite-member
-admin-manage-device
-admin-manage-member
-admin-manage-tool-state
-admin-publish-tool
-admin-save-validation
-admin-upsert-tool
-get-admin-analytics
-get-my-repair-tools
-get-signed-repair-tool
-register-device
-submit-repair-run
-~~~
+Supabase Edge Functions receive their reserved project credentials server-side. Never expose or copy the service-role/secret key into the Admin website or Android app.
 
-After the reviewed migrations and required secrets are in place, an authorized operator can deploy them manually:
+The recipe publisher requires the custom Edge Function secret `RECIPE_SIGNING_PRIVATE_KEY_PEM`. It must be an RSA-3072 PKCS#8 private key matching the X.509 public key embedded in the Android build. Keep the private key only in Supabase Edge Function Secrets.
 
-~~~bash
-for function in \
-  admin-assign-tool admin-delete-draft-tool admin-disable-tool \
-  admin-invite-member admin-manage-device admin-manage-member \
-  admin-manage-tool-state admin-publish-tool admin-save-validation \
-  admin-upsert-tool get-admin-analytics get-my-repair-tools \
-  get-signed-repair-tool register-device submit-repair-run
-do
-  supabase functions deploy "$function" --project-ref shwqsljicmhflnvjqjah
-done
-~~~
+The public/private key match was not verifiable through the connected management tools during the 20 November audit. Therefore:
 
-Keep JWT verification enabled (the Supabase CLI default); do not pass --no-verify-jwt. Every function independently validates the Supabase user and active Owner/member role before performing its operation. The service-role client is created only inside Edge Function code.
+- Do not publish a real repair tool until the existing production key is securely proven to match Android's public key.
+- Do not print, commit, upload to the website, or send the private key.
+- Do not generate a replacement key as a shortcut; coordinate any key rotation across the signer and Android verifier.
+- Use a signing verification test that returns only pass/fail and safe key fingerprints, never secret material.
 
-Automation status: this repository currently has no .github/workflows/supabase-functions-deploy.yml. No Supabase migration or Edge Function deployment is performed automatically by the checked-in GitHub Actions workflow. Deployment steps in this section are manual. Do not treat a green CI run as a Supabase deployment.
+## 8. Member invitation and email OTP
 
-## 8. Website hosting — manual
+Member onboarding is separate from Owner PIN login.
 
-Deploy this repository as a Node.js 22.23.4 application with the repository root as the application root:
+The production Auth hook function was ACTIVE during inspection, but actual message delivery was not proven. Before inviting real Members:
 
-- Install command: npm ci
-- Build command: npm run build
-- Start command: npm run start
+1. Confirm the Supabase Auth Send Email Hook points to the deployed `send-email-hook`.
+2. Verify the signed webhook secret and the provider credentials in the correct server-side secret stores.
+3. Confirm a verified sender domain and its SPF/DKIM/DMARC records.
+4. Confirm Supabase Auth Site URL is `https://mahi-repair-admin-yy7c.onrender.com`.
+5. Confirm the Additional Redirect URL includes `https://mahi-repair-admin-yy7c.onrender.com/**`.
+6. Run one consented test invitation and verify inbox delivery.
+7. Complete the Android Member OTP flow using that invited account.
 
-Set these browser-safe environment variables in Render → `mahi-repair-admin` → Environment:
+The live Auth URL allowlist and end-to-end email delivery were not independently verified in the 20 November audit. Do not treat a repository `config.toml` entry or an ACTIVE function as proof of live dashboard configuration.
 
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-- `ADMIN_OWNER_EMAIL` — the existing Owner Auth identifier; server-only, never prefixed with `NEXT_PUBLIC_`
+## 9. Repair Tool publishing and Android contract
 
-Do not configure service-role credentials, the database password or the signing private key in the website host. Set Supabase Auth Site URL and Edge Function `ADMIN_ORIGIN` to the canonical Admin origin for member invitations. The Owner PIN login does not use an Auth callback URL. Configure Android's own Auth redirect/deep-link allowlist separately. The app deployment is automatic on updates to the configured branch; Supabase migrations, secrets and Edge Function deployments remain separate manual operations.
+The Owner workflow is:
 
-## 9. Private Realtime and device authorization checks
+1. Create a draft Repair Tool.
+2. Validate it against the shared Repair Recipe v1 schema.
+3. Review every action and parameter against the Android native allowlist.
+4. Publish a new immutable version using the server-side RSA signer.
+5. Assign the tool to all active Members or selected Members.
+6. Confirm the Android device fetches the release through authenticated Edge Functions.
+7. Verify the exact signed payload bytes before parsing.
+8. Execute only native action IDs compiled into the APK, with user confirmation where required.
+9. Confirm the report appears in Admin Logs.
 
-The Realtime migration grants authenticated clients access only to their own private member/device broadcast topic. Events contain an opaque event ID, not recipe content. A device must still call the Edge Functions to fetch authorized recipes; the server checks member status, device ownership/revocation, publication state and assignment on every request.
+Android must perform a fresh server authorization before execution when immediate revocation is required. A cached recipe is not a substitute for a fresh device/member authorization check.
 
-After the four Realtime/backend migrations and JWT-verified Edge Functions have been deployed, verify:
+## 10. Live Realtime and report integrity
 
-1. Supabase Realtime **Allow public access** is disabled.
-2. `realtime.messages` RLS allows an active Owner only on `mahi-repair:admin`, and each active member only on that member's exact non-revoked device topic.
-3. The Android client receives only opaque device events, then fetches the latest catalogue through `get-my-repair-tools`.
-4. The Admin Console receives opaque `admin_data_changed` invalidations and re-renders its Owner-guarded server pages. If the websocket is interrupted, the UI falls back to a 15-second refresh until the private channel reconnects.
-5. A revoked device cannot fetch a catalogue or signed recipe; a suspended member cannot register, fetch or submit.
-6. Assignment changes, publish/unpublish, member status, device revocation and new repair reports produce invalidations after their database transaction commits.
-7. An identical Android `run_id` retry is acknowledged as a duplicate; changed report content or a different identity reusing the UUID receives a conflict.
-8. Android verifies RSA-SHA256 over the exact `signed_payload` UTF-8 bytes before parsing and executes only compiled native action IDs.
+Private Realtime events are opaque invalidation hints, not authorization or recipe payloads. Clients must refetch through the authenticated Edge Functions.
 
-Realtime messages contain no row data, PII, recipe payloads or signatures. They are invalidation hints only and never authorize execution.
+Verify:
 
-## 10. Release verification boundary
+- Project-level public Realtime access remains disabled.
+- Only an active Owner can receive the Owner topic.
+- Each active Member can receive only their own non-revoked device topic.
+- Tool publication/assignment, Member status changes, device revocation and report commits produce the intended invalidation events.
+- Identical retries with the same `run_id` are idempotent.
+- Reusing a `run_id` with altered content or another identity returns a conflict.
+- Offline reports remain queued locally until the server acknowledges the exact report.
 
-A successful GitHub Actions run proves only that the code in the commit passed the automated checks. It does not prove live Owner authentication, SMTP delivery, database migration state, RLS in the target project, signing-key correctness, deployed Edge Function versions, public website health or physical Android-device behavior.
+## 11. Production release acceptance
 
-Record the deployed commit SHA, project reference, hosting service/URL, manual migration history, Edge Function deployment result, key configuration verification and Owner/member/device acceptance results in the release record. No production deployment is implied by this guide or by CI.
+Do not declare the product production-ready until the following complete on an actual Android handset:
+
+- Owner PIN login and Owner-only Admin access.
+- Member invite email received and Android OTP sign-in completed.
+- Device appears under the correct Member in Admin.
+- RSA private/public signing key match proven without exposing the private key.
+- Owner creates, validates, publishes and assigns a safe repair tool.
+- Android fetches and verifies the signed tool, then runs a supported action.
+- Report is visible in Admin Logs.
+- Disable/unpublish, Member suspension, device revocation, offline/reconnect, duplicate retry, token refresh and Realtime behavior pass.
+- A stable production-signed APK/AAB installs and upgrades using the existing application ID and upload signing identity.
+
+## 12. Operational security
+
+The 20 November 2026 Supabase Security Advisor inspection reported `auth_leaked_password_protection` as a warning. Enable leaked-password protection in Supabase Auth security settings and re-check the advisor result.
+
+Also complete:
+
+- Backup and restore rehearsal.
+- Privacy-safe Render and Supabase log review.
+- Alerting for website, Auth, Edge Function and database failures.
+- Signing-key backup, rotation and revocation procedure.
+- Incident response and rollback runbook.
+- Periodic review of RLS, Storage policies and Auth settings.
+
+## 13. Live App Update Engine — not yet deployed
+
+Do not confuse the earlier Android integration branch's live-update implementation with production deployment. The 20 November production inspection found no Storage buckets, no app-update release migration and none of these production functions:
+
+- `admin-publish-app-update`
+- `get-app-update-manifest`
+- `get-app-update-asset-url`
+
+A separate, reviewed implementation and deployment process is required for the App Update Manager, private release bucket, signed manifests, content ZIP packages, APK assets and per-device update telemetry. Do not apply the draft update migration or deploy those functions directly to production before review, staging validation, and key/authorization acceptance.
+
+## Release decision
+
+**NOT FULLY PRODUCTION READY.** The shared Supabase project, schema, RLS tables, core Edge Functions and separate Admin source are in place. Live Owner authentication, email delivery, signing-key compatibility, physical-device enrolment, end-to-end Repair execution/reporting, production Android signing and the App Update Engine still require evidence.
