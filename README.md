@@ -72,7 +72,7 @@ Published versions and audit records are append-only. Authenticated browser data
 
 ## CI and deployment
 
-The pull-request workflow verifies the application committed in this repository. It does not apply Supabase migrations, deploy Edge Functions, modify secrets or publish a Render release. The Render service definition is [render.yaml](../render.yaml); it targets this repository's `main` branch and waits for repository checks before automatic deployment. Confirm the actual deployed commit in Render before release acceptance.
+The pull-request workflow verifies the application committed in this repository. It does not apply Supabase migrations, deploy Edge Functions, modify secrets or publish a Render release. The Render service definition is [render.yaml](render.yaml); it targets this repository's `main` branch and waits for repository checks before automatic deployment. Confirm the actual deployed commit in Render before release acceptance.
 
 ## Design reference
 
