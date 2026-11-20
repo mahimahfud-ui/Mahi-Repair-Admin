@@ -1,6 +1,6 @@
 import { handleError, jsonBody, preflight, rateLimit, requireOwner, respond } from '../_shared/http.ts';
 import { AppUpdateInputSchema, canonicalAppUpdateJson } from '../_shared/app-update.ts';
-import { signCanonicalPayload } from '../_shared/sign.ts';
+import { signCanonicalPayload, verifyCanonicalPayloadSignature } from '../_shared/sign.ts';
 
 const BUCKET = 'mahi-app-updates';
 
@@ -69,6 +69,12 @@ Deno.serve(async (request) => {
     };
     const manifestPayload = canonicalAppUpdateJson(manifest);
     const signature = await signCanonicalPayload(manifestPayload);
+    if (!(await verifyCanonicalPayloadSignature(manifestPayload, signature))) {
+      throw Object.assign(
+        new Error('The configured server signing key does not match the Android app public key. Update publication is blocked.'),
+        { status: 503 },
+      );
+    }
 
     const { data: committedId, error: commitError } = await admin.rpc('commit_app_update_release', {
       p_release_id: releaseId,
