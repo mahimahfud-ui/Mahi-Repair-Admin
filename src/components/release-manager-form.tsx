@@ -12,7 +12,7 @@ type UploadedAsset = {
 };
 
 const DEFAULT_REMOTE_CONFIG = JSON.stringify({
-  featureFlags: { "new-diagnostics": true },
+  featureFlags: { "repair.run_enabled": true },
   repairTools: { 'run-repair': true },
   ui: { announcement: null },
   toolMetadata: {},
