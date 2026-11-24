@@ -25,6 +25,8 @@ export default function LoginPage() {
         setError('Too many sign-in requests. Wait before requesting another link.');
       } else if (result.reason === 'configuration') {
         setError('Owner sign-in is not configured correctly. Check the server-side Owner email and Admin URL settings.');
+      } else if (result.reason === 'wrong_origin') {
+        setError('You opened an old Admin URL. Please use https://mahi-repair-admin-yy7c.onrender.com/login and request a fresh sign-in link.');
       } else if (result.reason === 'invalid') {
         setError('This email is not the configured Owner account. Member accounts cannot enter this console.');
       } else {
