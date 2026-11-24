@@ -72,7 +72,7 @@ The Render repository YAML declares `main` and `checksPass`. The last recorded p
 
 The active Next.js source includes:
 
-- Owner PIN sign-in using server-side Supabase Auth password authentication and an active Owner profile check.
+- One-time Owner Magic Link sign-in using the server-configured Auth identity, PKCE callback exchange and active Owner profile check. The shared email hook distinguishes the canonical Admin callback from Android Member OTP.
 - Owner-protected dashboard and server actions.
 - Member invitation and Member status management.
 - Device inventory and revoke/restore.
@@ -107,7 +107,7 @@ Do not publish a production tool or announce full production readiness until the
 - Confirm Render is serving this repository's `main` branch at the canonical `yy7c` hostname.
 - Confirm the deployed SHA is the reviewed release commit.
 - Confirm Render environment values exist with correct scopes.
-- Test Owner PIN login, logout, refresh/session persistence and a protected Owner page.
+- Test Owner Magic Link delivery and callback, logout, refresh/session persistence and a protected Owner page.
 - Confirm a Member identity is denied before any Owner-only session or page access is granted.
 
 The `/api/health` endpoint checks configuration shape only. It is not a successful Owner login or database integration test.

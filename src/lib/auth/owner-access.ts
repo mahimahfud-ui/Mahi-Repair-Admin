@@ -1,4 +1,4 @@
-import { isValidOwnerAuthEmail } from './owner-pin';
+import { isValidOwnerAuthEmail } from './owner-auth';
 
 export type OwnerAccessProfile = {
   role?: string | null;

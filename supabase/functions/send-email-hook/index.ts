@@ -1,4 +1,5 @@
 import { Webhook } from "https://esm.sh/standardwebhooks@1.0.0";
+import { isOwnerMagicLinkRoute } from "./routing.ts";
 
 type EmailPayload = {
   user?: { email?: string };
@@ -78,7 +79,7 @@ function verificationUrl(
   return url.toString();
 }
 
-function makeEmail(payload: EmailPayload, supabaseUrl: string): Message | null {
+function makeEmail(payload: EmailPayload, supabaseUrl: string, adminOrigin: string): Message | null {
   const user = payload.user ?? {};
   const data = payload.email ?? payload.email_data ?? {};
   const to = (data.email ?? user.email ?? "").trim().toLowerCase();
@@ -100,20 +101,25 @@ function makeEmail(payload: EmailPayload, supabaseUrl: string): Message | null {
   const safeToken = escapeHtml(token);
   const safeTokenNew = escapeHtml(tokenNew);
 
-  const linkBlock = link
-    ? '<p><a href="' + escapeHtml(link) + '" style="display:inline-block;padding:12px 18px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Continue securely</a></p>'
+  const ownerMagicLink = isOwnerMagicLinkRoute({ action, redirectTo, adminOrigin });
+  if (ownerMagicLink && !tokenHash) return null;
+
+  // The Owner gets a clickable link only for the standalone Admin callback.
+  // Mobile/member magiclink requests keep their six-digit OTP email behavior.
+  const linkBlock = link && (ownerMagicLink || action.toLowerCase() !== "magiclink" || !token)
+    ? '<p><a href="' + escapeHtml(link) + '" style="display:inline-block;padding:12px 18px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Sign in to Owner Console</a></p>'
     : "";
   const newLinkBlock = newLink
     ? '<p><a href="' + escapeHtml(newLink) + '" style="display:inline-block;padding:12px 18px;background:#0f766e;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Confirm new email</a></p>'
     : "";
-  const codeBlock = token
+  const codeBlock = token && !ownerMagicLink
     ? '<p style="margin:20px 0 6px">Your one-time code:</p><div style="font-size:28px;font-weight:700;letter-spacing:6px;padding:12px 16px;background:#f1f5f9;border-radius:8px;display:inline-block">' + safeToken + '</div>'
     : "";
   const newCodeBlock = tokenNew
     ? '<p style="margin:20px 0 6px">Your new-email confirmation code:</p><div style="font-size:24px;font-weight:700;letter-spacing:5px;padding:12px 16px;background:#f1f5f9;border-radius:8px;display:inline-block">' + safeTokenNew + '</div>'
     : "";
 
-  const subject = subjectFor(action);
+  const subject = ownerMagicLink ? "Your Mahi Repair Owner sign-in link" : subjectFor(action);
   const html = '<!doctype html><html><body style="margin:0;padding:32px 16px;background:#0b1220;font-family:Arial,sans-serif;color:#172033">' +
     '<main style="max-width:520px;margin:0 auto;padding:28px;background:#fff;border-radius:16px">' +
     '<p style="margin:0 0 8px;color:#2563eb;font-weight:700;letter-spacing:1px">MAHI REPAIR</p>' +
@@ -126,8 +132,8 @@ function makeEmail(payload: EmailPayload, supabaseUrl: string): Message | null {
   const textParts = [
     "MAHI REPAIR — Secure account verification",
     "A " + action + " request was made for " + to + ".",
-    link ? "Continue: " + link : "",
-    token ? "One-time code: " + token : "",
+    ownerMagicLink && link ? "Owner sign-in: " + link : link && !token ? "Continue: " + link : "",
+    token && !ownerMagicLink ? "One-time code: " + token : "",
     newLink ? "Confirm new email: " + newLink : "",
     tokenNew ? "New-email confirmation code: " + tokenNew : "",
     "Never share your code or link. If you did not request this, ignore the message.",
@@ -231,7 +237,8 @@ Deno.serve(async (req: Request) => {
     return json({ error: "EMAIL_PROVIDER_NOT_CONFIGURED" }, 503);
   }
 
-  const message = makeEmail(payload, supabaseUrl);
+  const adminOrigin = env("ADMIN_ORIGIN") || "https://mahi-repair-admin-yy7c.onrender.com";
+  const message = makeEmail(payload, supabaseUrl, adminOrigin);
   if (!message) return json({ error: "INVALID_EMAIL_PAYLOAD" }, 422);
 
   // Hash the Auth token before using it as an idempotency identifier. Never log it.
