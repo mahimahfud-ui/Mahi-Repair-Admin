@@ -1,39 +1,28 @@
 "use client";
 
 import { type FormEvent, useState } from 'react';
-import { ArrowRight, CheckCircle2, Cloud, Mail, ShieldCheck } from 'lucide-react';
-import { requestOwnerMagicLink } from '@/app/auth/actions';
+import { ArrowRight, Cloud, Lock, ShieldCheck } from 'lucide-react';
+import { signInWithOwnerPin } from '@/app/actions';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('mahinmhfd@gmail.com');
+  const [pin, setPin] = useState('');
   const [busy, setBusy] = useState(false);
-  const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
-
     setBusy(true);
-    setSent(false);
     setError('');
     try {
-      const result = await requestOwnerMagicLink(email);
-      if (result.ok) {
-        setSent(true);
-      } else if (result.reason === 'rate_limited') {
-        setError('Too many sign-in requests. Wait before requesting another link.');
-      } else if (result.reason === 'configuration') {
-        setError('Owner sign-in is not configured correctly. Check the server-side Owner email and Admin URL settings.');
-      } else if (result.reason === 'wrong_origin') {
-        setError('You opened an old Admin URL. Please use https://mahi-repair-admin-yy7c.onrender.com/login and request a fresh sign-in link.');
-      } else if (result.reason === 'invalid') {
-        setError('This email is not the configured Owner account. Member accounts cannot enter this console.');
-      } else {
-        setError('The sign-in link could not be sent. Check Auth email delivery and try again.');
+      const result = await signInWithOwnerPin(pin);
+      if (result.ok === false) {
+        if (result.reason === 'rate_limited') setError('Too many attempts. Wait before trying again.');
+        else if (result.reason === 'configuration') setError('Owner PIN sign-in is not configured on the server.');
+        else setError('The Owner PIN is incorrect. Member accounts cannot enter this console.');
       }
     } catch {
-      setError('Unable to request a sign-in link right now. Please try again.');
+      setError('Unable to sign in right now. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -49,43 +38,26 @@ export default function LoginPage() {
             <div className="text-xs muted">OWNER CONTROL CENTER</div>
           </div>
         </div>
-
         <div className="mb-6">
           <div className="mb-2 flex items-center gap-2 text-sm text-red-300"><ShieldCheck size={16} /> Private owner access</div>
-          <h1 className="text-2xl font-semibold tracking-tight">Sign in with email</h1>
-          <p className="muted text-sm mt-2">Enter the configured Owner email. We will send a one-time sign-in link to that inbox. Member accounts cannot enter this console.</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Unlock Admin Panel</h1>
+          <p className="muted text-sm mt-2">Enter the Owner PIN to continue. This console is restricted to the configured active Owner account.</p>
         </div>
-
         <form onSubmit={submit} className="space-y-4">
           <label className="block text-sm">
-            Owner email
+            Owner PIN
             <div className="relative mt-2">
-              <Mail size={17} className="absolute left-3 top-1/2 -translate-y-1/2 muted" />
-              <input
-                className="field pl-10"
-                type="email"
-                autoComplete="email"
-                autoCapitalize="none"
-                spellCheck={false}
-                required
-                disabled={busy || sent}
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="owner@example.com"
-              />
+              <Lock size={17} className="absolute left-3 top-1/2 -translate-y-1/2 muted" />
+              <input className="field pl-10 font-mono tracking-[0.35em]" type="password" inputMode="numeric" autoComplete="current-password" pattern="[0-9]{8,12}" minLength={8} maxLength={12} required disabled={busy} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, '').slice(0, 12))} placeholder="••••••••" />
             </div>
+            <span className="mt-2 block text-[11px] muted">8–12 digits</span>
           </label>
-
-          <button className="btn btn-primary w-full" type="submit" disabled={busy || sent || !email.trim()}>
-            {busy ? 'Sending secure link…' : sent ? 'Link sent' : 'Send secure sign-in link'}
-            <ArrowRight size={16} />
+          <button className="btn btn-primary w-full" type="submit" disabled={busy || pin.length < 8}>
+            {busy ? 'Verifying…' : 'Unlock Owner Console'} <ArrowRight size={16} />
           </button>
         </form>
-
-        {sent && <div role="status" aria-live="polite" className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300"><div className="flex items-center gap-2 font-medium"><CheckCircle2 size={16} /> Magic Link sent</div><p className="mt-1 text-emerald-200/80">Check your inbox and spam folder, then open the one-time sign-in link on this device.</p></div>}
         {error && <p role="alert" aria-live="polite" className="mt-4 text-sm text-red-400">{error}</p>}
-        {sent && <button type="button" className="mt-3 text-xs text-red-300 hover:text-red-200" onClick={() => setSent(false)}>Use a different email</button>}
-        <p className="mt-8 text-[11px] muted">Private administration · Access is verified against the active Owner profile on the server</p>
+        <p className="mt-8 text-[11px] muted">No email sign-in · Owner authorization is verified against the active profile on the server</p>
       </section>
     </main>
   );
