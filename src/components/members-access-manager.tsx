@@ -2,7 +2,7 @@
 
 import { type FormEvent, useState } from 'react';
 import { KeyRound, Copy, RefreshCw, UserPlus } from 'lucide-react';
-import { createMemberAccess, resetMemberPin, setMemberStatus } from '@/app/actions';
+import { createMemberAccess, setMemberStatus } from '@/app/actions';
 
 type MemberRow = {
   id: string;
@@ -34,13 +34,7 @@ export function MembersAccessManager({ members }: { members: MemberRow[] }) {
     } finally { setBusy(false); }
   }
 
-  async function reset(userId: string) {
-    if (busy) return;
-    setBusy(true); setError(''); setCredentials(null);
-    try { setCredentials(await resetMemberPin(userId)); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not reset the Member PIN.'); }
-    finally { setBusy(false); }
-  }
+
 
   async function copy(value: string, label: string) {
     try { await navigator.clipboard.writeText(value); setCopied(label); }
