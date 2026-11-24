@@ -53,7 +53,7 @@ export function MembersAccessManager({ members }: { members: MemberRow[] }) {
         <UserPlus className="text-red-400" />
         <div>
           <h2 className="text-sm font-semibold">Create member access</h2>
-          <p className="mt-1 text-xs muted">Generate a Member ID and 12-digit PIN. No email or invitation is required.</p>
+          <p className="mt-1 text-xs muted">Generate a Member ID and 12-digit PIN. No email or invitation is required. Existing email-only accounts remain preserved until their PIN migration is enabled.</p>
         </div>
       </div>
       <form onSubmit={create} className="flex flex-col gap-2 sm:flex-row">
@@ -85,7 +85,7 @@ export function MembersAccessManager({ members }: { members: MemberRow[] }) {
                 <td className="p-3 text-xs muted">{member.created_at.slice(0, 10)}</td>
                 <td className="p-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    <button type="button" className="btn btn-secondary py-2 text-[10px]" disabled={busy} onClick={() => reset(member.id)}><RefreshCw size={12} /> {member.member_code ? 'Reset PIN' : 'Issue ID + PIN'}</button>
+                    <button type="button" className="btn btn-secondary py-2 text-[10px]" disabled title={member.member_code ? "Member PIN reset is not enabled yet." : "Legacy email-only account; its existing history is preserved."}><RefreshCw size={12} /> {member.member_code ? 'PIN reset pending' : 'Legacy account'}</button>
                     <form action={setMemberStatus} className="flex gap-1">
                       <input type="hidden" name="user_id" value={member.id} />
                       <select name="status" defaultValue={member.status} className="field py-2 text-[10px]"><option value="active">Active</option><option value="suspended">Suspended</option><option value="revoked">Revoked</option></select>
