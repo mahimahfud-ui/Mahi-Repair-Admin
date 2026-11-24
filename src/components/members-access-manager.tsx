@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { type FormEvent, useState } from 'react';
 import { KeyRound, Copy, RefreshCw, UserPlus } from 'lucide-react';
 import { createMemberAccess, resetMemberPin, setMemberStatus } from '@/app/actions';
 
@@ -21,7 +21,7 @@ export function MembersAccessManager({ members }: { members: MemberRow[] }) {
   const [error, setError] = useState('');
   const [copied, setCopied] = useState('');
 
-  async function create(event: React.FormEvent<HTMLFormElement>) {
+  async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
     setBusy(true); setError(''); setCredentials(null);
@@ -82,7 +82,7 @@ export function MembersAccessManager({ members }: { members: MemberRow[] }) {
                 <td className="p-3 text-xs">{member.display_name || 'Member'}</td>
                 <td className="p-3 font-mono text-xs">{member.member_code || <span className="muted">Not issued</span>}</td>
                 <td className="p-3 text-xs">{member.status}</td>
-                <td className="p-3 text-xs muted">{new Date(member.created_at).toLocaleDateString()}</td>
+                <td className="p-3 text-xs muted">{member.created_at.slice(0, 10)}</td>
                 <td className="p-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <button type="button" className="btn btn-secondary py-2 text-[10px]" disabled={busy} onClick={() => reset(member.id)}><RefreshCw size={12} /> {member.member_code ? 'Reset PIN' : 'Issue ID + PIN'}</button>
