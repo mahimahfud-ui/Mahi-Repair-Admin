@@ -5,8 +5,33 @@ import { createClient } from '@/lib/supabase/server';
 import { RepairRecipeSchema } from '@/lib/recipe/catalog';
 import { requireOwner } from '@/lib/auth/require-owner';
 import { isConfiguredActiveOwner } from '@/lib/auth/owner-access';
+import { isValidOwnerAuthEmail } from '@/lib/auth/owner-auth';
+import { isValidOwnerPin } from '@/lib/auth/owner-pin';
 
-const ADMIN_FUNCTIONS = new Set(['admin-invite-member','admin-manage-member','admin-upsert-tool','admin-publish-tool','admin-disable-tool','admin-assign-tool','admin-save-validation','admin-delete-draft-tool','admin-manage-device','admin-manage-tool-state','get-admin-analytics','admin-publish-app-update']);
+const ADMIN_FUNCTIONS = new Set(['admin-create-member','admin-reset-member-pin','admin-manage-member','admin-upsert-tool','admin-publish-tool','admin-disable-tool','admin-assign-tool','admin-save-validation','admin-delete-draft-tool','admin-manage-device','admin-manage-tool-state','get-admin-analytics','admin-publish-app-update']);
+
+export async function signInWithOwnerPin(pin: string) {
+  const ownerEmail = process.env['ADMIN_OWNER_EMAIL']?.trim().toLowerCase();
+  if (!isValidOwnerAuthEmail(ownerEmail)) return { ok: false as const, reason: 'configuration' as const };
+  if (!isValidOwnerPin(pin)) return { ok: false as const, reason: 'invalid' as const };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signInWithPassword({ email: ownerEmail, password: pin });
+  if (error || !data.user) {
+    const status = (error as { status?: number } | null)?.status;
+    const message = error?.message.toLowerCase() ?? '';
+    if (status === 429 || message.includes('rate limit')) return { ok: false as const, reason: 'rate_limited' as const };
+    return { ok: false as const, reason: 'invalid' as const };
+  }
+
+  const { data: profile, error: profileError } = await supabase.from('profiles')
+    .select('role,status').eq('id', data.user.id).maybeSingle();
+  if (profileError || !isConfiguredActiveOwner(data.user.email, ownerEmail, profile)) {
+    await supabase.auth.signOut();
+    return { ok: false as const, reason: 'invalid' as const };
+  }
+  redirect('/');
+}
 
 export async function signOut() { const supabase = await createClient(); await supabase.auth.signOut(); redirect('/login'); }
 export async function invokeAdminFunction(functionName: string, body: Record<string, unknown>) {
@@ -51,7 +76,19 @@ export async function publishTool(formData:FormData){const id=String(formData.ge
 export async function republishVersion(formData:FormData){const toolId=String(formData.get('tool_id')??'');const sourceVersionId=String(formData.get('source_version_id')??'');const changelog=String(formData.get('changelog')??'Republished prior version');await invokeAdminFunction('admin-publish-tool',{tool_id:toolId,source_version_id:sourceVersionId,changelog});revalidatePath('/tools');revalidatePath('/publishing');revalidatePath('/versions');}
 export async function setToolDisabled(formData:FormData){const toolId=String(formData.get('tool_id')??'');const disabled=String(formData.get('disabled')??'true')==='true';await invokeAdminFunction('admin-disable-tool',{tool_id:toolId,disabled});revalidatePath('/tools');revalidatePath('/publishing');}
 export async function setToolState(formData:FormData){const toolId=String(formData.get('tool_id')??'');const status=String(formData.get('status')??'DRAFT');await invokeAdminFunction('admin-manage-tool-state',{tool_id:toolId,status});revalidatePath('/tools');revalidatePath('/publishing');}
-export async function inviteMember(formData:FormData){const email=String(formData.get('email')??'').trim();await invokeAdminFunction('admin-invite-member',{email});revalidatePath('/members');}
+export async function createMemberAccess(displayName: string) {
+  const cleanName = String(displayName ?? '').trim();
+  if (cleanName.length < 2 || cleanName.length > 80) throw new Error('Enter a member name between 2 and 80 characters.');
+  const result = await invokeAdminFunction('admin-create-member', { display_name: cleanName });
+  revalidatePath('/members');
+  return result.data as { member_code: string; pin: string; display_name: string };
+}
+export async function resetMemberPin(userId: string) {
+  if (!/^[0-9a-f-]{36}$/i.test(userId)) throw new Error('Invalid member account.');
+  const result = await invokeAdminFunction('admin-reset-member-pin', { user_id: userId });
+  revalidatePath('/members');
+  return result.data as { member_code: string; pin: string; display_name: string };
+}
 export async function setMemberStatus(formData:FormData){const userId=String(formData.get('user_id')??'');const status=String(formData.get('status')??'suspended');await invokeAdminFunction('admin-manage-member',{user_id:userId,status});revalidatePath('/members');}
 export async function assignTool(formData:FormData){const toolId=String(formData.get('tool_id')??'');const audience=String(formData.get('audience')??'all_active_members');const memberIds=formData.getAll('member_ids').map(x=>String(x).trim()).filter(Boolean);await invokeAdminFunction('admin-assign-tool',{tool_id:toolId,audience,...(audience==='selected_members'?{member_ids:memberIds}:{})});revalidatePath('/tools');}
 
