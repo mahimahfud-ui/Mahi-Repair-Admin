@@ -106,8 +106,9 @@ function makeEmail(payload: EmailPayload, supabaseUrl: string, adminOrigin: stri
 
   // The Owner gets a clickable link only for the standalone Admin callback.
   // Mobile/member magiclink requests keep their six-digit OTP email behavior.
+  const linkLabel = ownerMagicLink ? "Sign in to Owner Console" : "Continue securely";
   const linkBlock = link && (ownerMagicLink || action.toLowerCase() !== "magiclink" || !token)
-    ? '<p><a href="' + escapeHtml(link) + '" style="display:inline-block;padding:12px 18px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Sign in to Owner Console</a></p>'
+    ? '<p><a href="' + escapeHtml(link) + '" style="display:inline-block;padding:12px 18px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">' + linkLabel + '</a></p>'
     : "";
   const newLinkBlock = newLink
     ? '<p><a href="' + escapeHtml(newLink) + '" style="display:inline-block;padding:12px 18px;background:#0f766e;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Confirm new email</a></p>'
