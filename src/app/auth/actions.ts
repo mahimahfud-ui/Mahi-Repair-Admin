@@ -1,11 +1,12 @@
 "use server";
 
+import { headers } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { isValidOwnerAuthEmail } from '@/lib/auth/owner-auth';
 
 export type OwnerMagicLinkResult =
   | { ok: true }
-  | { ok: false; reason: 'invalid' | 'rate_limited' | 'configuration' | 'failed' };
+  | { ok: false; reason: 'invalid' | 'rate_limited' | 'configuration' | 'wrong_origin' | 'failed' };
 
 /**
  * Send a one-time Supabase Magic Link only to the server-configured Owner.
@@ -29,6 +30,29 @@ export async function requestOwnerMagicLink(inputEmail: string): Promise<OwnerMa
     if (appUrl.protocol !== 'https:' && !(isLocalDevelopment && appUrl.protocol === 'http:')) {
       return { ok: false, reason: 'configuration' };
     }
+    const requestHeaders = await headers();
+    const suppliedOrigin = requestHeaders.get('origin');
+    if (suppliedOrigin) {
+      let parsedOrigin: URL;
+      try {
+        parsedOrigin = new URL(suppliedOrigin);
+      } catch {
+        return { ok: false, reason: 'wrong_origin' };
+      }
+      if (parsedOrigin.origin !== appUrl.origin) {
+        return { ok: false, reason: 'wrong_origin' };
+      }
+    }
+
+    const forwardedHost = requestHeaders.get('x-forwarded-host');
+    const requestHost = (forwardedHost || requestHeaders.get('host') || '')
+      .split(',')[0]
+      .trim()
+      .toLowerCase();
+    if (requestHost && requestHost !== appUrl.host.toLowerCase()) {
+      return { ok: false, reason: 'wrong_origin' };
+    }
+
     emailRedirectTo = new URL('/auth/callback', appUrl.origin).toString();
   } catch {
     return { ok: false, reason: 'configuration' };
