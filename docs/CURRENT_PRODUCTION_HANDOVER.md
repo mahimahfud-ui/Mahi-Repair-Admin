@@ -61,7 +61,8 @@ At the 24 November inspection:
 
 - Android `main`: `bf87061cf1cbb713258550cb51413e2834afed99` before the open Realtime fix PR #36.
 - Android PR #36 head: `0cff83ad27b06625eaf2615b49435a377d4219d1`; Admin Panel CI and Backend CI passed, while Android CI was still running at the time of this note.
-- Admin `main` includes migration-alignment merge commit `22ae1248ef4ef0ed49e8b410a9e526523dc9d99`.
+- Admin `main` includes migration-alignment merge commit `22ae1248ef4ef0ed49e8b410a9e526523dc9d99` and current handover refresh `aa3c371ee7f1157c4a786d6cb6b6e60824d28e56`.
+- Render service `mahi-repair-admin` deployed the Admin `main` documentation update as deploy `dep-dc2rbjk9v7es73bi3910` (`LIVE`); `/api/health` returned HTTP 200 with `ready=true` after deployment.
 
 The Render repository YAML declares `main` and `checksPass`. The last recorded production-readiness document from 11 November reported the Admin service at `mahi-repair-admin-yy7c.onrender.com` and deployed commit `f4bc174cc2152fc88d92f0e62b24b981e97f9098`. The current Render deployed SHA was not independently confirmed during this audit; verify it in the Render dashboard rather than treating this historical SHA as current.
 
@@ -174,7 +175,7 @@ Production evidence checked on 24 November 2026:
 
 The release flow is: Owner publishes an immutable manifest from the standalone Admin Update Manager; the server validates private assets and signs canonical manifest bytes; the database inserts the release and emits an opaque `app_update_published` event to active registered Member devices; Android re-fetches the manifest using its Member JWT and registered device ID, verifies RSA-SHA256, and only then offers a data package or Android system-installer APK handoff.
 
-A 24 November audit found a client-side Realtime allowlist omission: Android's parser did not yet accept `app_update_published`. Android PR #36 adds the event and a regression test using the exact broadcast envelope. At the time this document was updated, its Android CI was still in progress; do not call the instant-notification fix deployed until PR #36 is merged to Android `main` and CI passes.
+The 24 November client-side Realtime allowlist omission is fixed. Android PR #36 merged to Android `main` as commit `669e6b70fa411ec423b9d592464b1ffc6f85fb22`; it adds `app_update_published` and a regression test using the exact broadcast envelope. The PR's Android CI retry passed (test suite and debug APK build); post-merge main workflows were running/queued at the time of this update. Android now has the source-level path to receive the Admin publish event and then re-fetch the signed manifest through the authenticated Member/device endpoint. Physical-device event delivery remains unverified.
 
 Remaining acceptance work:
 
