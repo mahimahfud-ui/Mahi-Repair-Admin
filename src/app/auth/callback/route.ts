@@ -40,7 +40,8 @@ export async function GET(request: NextRequest) {
   if (request.nextUrl.origin !== origin) {
     const canonicalCallback = new URL('/auth/callback', origin);
     canonicalCallback.search = request.nextUrl.search;
-    return NextResponse.redirect(canonicalCallback, 307, {
+    return NextResponse.redirect(canonicalCallback, {
+      status: 307,
       headers: { 'Cache-Control': 'no-store' },
     });
   }
