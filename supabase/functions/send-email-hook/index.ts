@@ -133,7 +133,7 @@ function makeEmail(payload: EmailPayload, supabaseUrl: string, adminOrigin: stri
     "MAHI REPAIR — Secure account verification",
     "A " + action + " request was made for " + to + ".",
     ownerMagicLink && link ? "Owner sign-in: " + link : link && !token ? "Continue: " + link : "",
-    token ? "One-time code: " + token : "",
+    token && !ownerMagicLink ? "One-time code: " + token : "",
     newLink ? "Confirm new email: " + newLink : "",
     tokenNew ? "New-email confirmation code: " + tokenNew : "",
     "Never share your code or link. If you did not request this, ignore the message.",
