@@ -102,19 +102,34 @@ After deployment, verify:
 1. The production site and `/login` load over HTTPS.
 2. `/api/health` returns HTTP 200 and `ready: true`.
 3. The deployed commit SHA matches the intended reviewed `main` commit.
-4. Owner PIN login succeeds and Member identities are denied from Owner-only routes.
+4. Owner Magic Link login succeeds and Member identities are denied from Owner-only routes.
 5. Server logs do not expose PINs, tokens, email credentials or signing material.
 
-## 5. Owner PIN authentication
+## 5. Owner Magic Link authentication
 
-The Owner enters an 8–12 digit numeric PIN. The server action uses the server-only `ADMIN_OWNER_EMAIL` to authenticate against the existing Supabase Auth account with `signInWithPassword`, then verifies that the matching `public.profiles` row has:
+The Owner enters the configured email address and requests a one-time Supabase Magic Link. The server action:
 
-- `role = 'owner'`
-- `status = 'active'`
+- Accepts only the server-configured `ADMIN_OWNER_EMAIL` identity.
+- Calls `signInWithOtp` with `shouldCreateUser: false`; it cannot create a new Owner account.
+- Redirects only to the canonical Admin `/auth/callback` endpoint.
+- Exchanges the PKCE authorization code, then verifies the authenticated email matches `ADMIN_OWNER_EMAIL` and the database profile is `role = 'owner'` and `status = 'active'`.
+- Signs out and denies access for every Member, unknown or inactive account.
 
-The PIN is the existing Owner Auth account password. It is not stored in this repository, an environment file, browser storage or the Android app. Configure or rotate it directly through the approved Supabase Auth administration path. Use a random PIN and keep Auth rate limits enabled.
+The Admin Send Email Hook sends a clickable link only when the redirect is the standalone Admin callback. Android Member OTP requests continue to receive a six-digit code; do not change the shared Auth email template to a link-only template.
 
-Every protected console page and privileged server action must continue to enforce the server-side Owner guard. Never infer Owner authority from a local UI flag, a client-supplied role, or a Member account.
+Required Render values:
+
+| Variable | Scope | Purpose |
+|---|---|---|
+| `ADMIN_OWNER_EMAIL` | Server-only | Existing Owner Auth identity |
+| `NEXT_PUBLIC_APP_URL` | Browser-safe | Exact canonical Admin origin, no trailing slash |
+
+Required Supabase Auth URL configuration:
+
+- Site URL: `https://mahi-repair-admin-yy7c.onrender.com`.
+- Additional Redirect URLs: `https://mahi-repair-admin-yy7c.onrender.com/**` (or the exact `/auth/callback` URL) and the local callback only for local development.
+
+The Auth Send Email Hook must remain enabled and have valid provider credentials. It uses the configured Resend/Brevo provider secrets; a successful API request alone does not prove inbox delivery. Verify one Owner Magic Link in the real inbox and separately verify the Android Member OTP code flow. If Auth email rate limits are reached, wait for the provider window or adjust the configured provider/rate limits; do not switch the shared Member template to Magic Link-only.
 
 ## 6. Supabase project, migrations and Edge Functions
 
