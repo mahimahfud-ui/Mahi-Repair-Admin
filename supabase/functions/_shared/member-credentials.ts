@@ -11,7 +11,7 @@ function randomIndex(max: number): number {
 }
 
 export function isValidMemberCode(value: unknown): value is string {
-  return typeof value === 'string' && MEMBER_CODE_PATTERN.test(value.trim().toUpperCase());
+  return typeof value === 'string' && MEMBER_CODE_PATTERN.test(value);
 }
 
 export function isValidMemberPin(value: unknown): value is string {
