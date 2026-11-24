@@ -1,6 +1,6 @@
 # Mahi Repair — current production handover
 
-**Audit date: 20 November 2026**  
+**Audit date: 24 November 2026**  
 **Scope:** Android Member app, standalone Owner Admin website, shared Supabase production project, GitHub source and deployment configuration.
 
 This document is the current operational reference for the two-repository Supabase architecture. It supersedes conflicting historical setup notes that describe the short Render hostname, the old embedded Admin app, or a Firebase/Cloud Run cutover as the active runtime.
@@ -20,7 +20,7 @@ The Android package is a Member client. Owner management must remain exclusively
 
 Current Android authentication, device registration, recipe retrieval, report submission and private Realtime implementation use Supabase. Firebase project metadata and Firebase/Cloud Run handover material still present in the Android repository are not evidence of a live native Firebase backend. Do not provision another backend, enable billing, or migrate the clients to Firebase/Cloud Run unless the Owner explicitly approves a separate architecture replacement.
 
-## 2. Evidence checked on 20 November 2026
+## 2. Evidence checked on 24 November 2026
 
 ### Supabase project
 
@@ -29,22 +29,21 @@ The connected Supabase management API reported:
 - Project name: `Mahi-Repair`.
 - Status: `ACTIVE_HEALTHY`.
 - PostgreSQL: 17.11.
-- Nine production migrations recorded as applied.
-- Seventeen Edge Functions reported `ACTIVE`.
+- Ten production migrations recorded as applied, including `20261120135855_add_signed_app_update_releases`.
+- Twenty Edge Functions reported `ACTIVE`.
 - Sixteen Edge Functions require JWT verification. The Auth `send-email-hook` has JWT verification disabled because it validates the signed webhook signature itself.
-- Nine public tables were listed; RLS was enabled on all nine.
+- Ten public tables were listed; RLS was enabled on all ten.
 - Profiles: one active Owner and one active Member.
 - Devices: 0.
 - Repair tools: 0.
 - Published tool versions: 0.
 - Repair runs: 0.
+- App update releases: 0.
 - Admin audit events: 0.
 
-A direct read-only query of `storage.buckets` returned no buckets at the time of this audit.
+The private Storage bucket `mahi-app-updates` exists with `public=false`, a 150 MiB upload cap, and ZIP/APK MIME restrictions. The bucket currently has no stored release objects.
 
-The 17 active functions were:
-
-`admin-assign-tool`, `admin-delete-draft-tool`, `admin-disable-tool`, `admin-invite-member`, `admin-manage-device`, `admin-manage-member`, `admin-manage-tool-state`, `admin-publish-tool`, `admin-save-validation`, `admin-upsert-tool`, `get-admin-analytics`, `get-admin-dashboard`, `get-my-repair-tools`, `get-signed-repair-tool`, `register-device`, `send-email-hook`, `submit-repair-run`.
+The 20 active functions include the original 17 repair/admin functions plus `admin-publish-app-update` (v2), `get-app-update-manifest` (v1), and `get-app-update-asset-url` (v1). The three app-update functions all require JWT verification. The Auth `send-email-hook` is the one JWT-disabled hook and validates its signed webhook payload.
 
 The profile roles/statuses were read-only inspected and showed one `owner/active` and one `member/active`. Do not change, promote, delete or repurpose either existing account as part of routine integration work.
 
@@ -58,10 +57,11 @@ Enable the setting through Supabase Auth security settings, then re-run the Secu
 
 ### GitHub source heads
 
-At the time of the repository inspection:
+At the 24 November inspection:
 
-- Android `main`: `caebeca862a147139f4d9b08e0fa95acbea848d0`.
-- Admin `main`: `ccaeea7a64dd9397c77f0b2209a4463db9681195`.
+- Android `main`: `bf87061cf1cbb713258550cb51413e2834afed99` before the open Realtime fix PR #36.
+- Android PR #36 head: `0cff83ad27b06625eaf2615b49435a377d4219d1`; Admin Panel CI and Backend CI passed, while Android CI was still running at the time of this note.
+- Admin `main` includes migration-alignment merge commit `22ae1248ef4ef0ed49e8b410a9e526523dc9d99`.
 
 The Render repository YAML declares `main` and `checksPass`. The last recorded production-readiness document from 11 November reported the Admin service at `mahi-repair-admin-yy7c.onrender.com` and deployed commit `f4bc174cc2152fc88d92f0e62b24b981e97f9098`. The current Render deployed SHA was not independently confirmed during this audit; verify it in the Render dashboard rather than treating this historical SHA as current.
 
@@ -159,31 +159,35 @@ The normal Android CI artifact is debug-signed and not a production distribution
 - Install and upgrade on a physical device.
 - Preserve the existing application ID and upload signing identity; never generate a replacement key for an already distributed app.
 
-## 5. Live App Update Engine — production gap
+## 5. Signed Live App Update Engine — deployed, awaiting real-device acceptance
 
-The earlier Android integration branch contains source for a signed App Update Manager, manifest verification, content ZIP extraction/activation, native APK handoff and local data rollback. That work is not merged into current Android `main` and is not provisioned in current Supabase production.
+The signed app-update implementation is now present in Android `main` and the standalone Admin repository. The production Supabase project has the matching migration, private Storage bucket, immutable release table, private device-scoped broadcast trigger, and all three update Edge Functions.
 
-The 20 November production inspection found:
+Production evidence checked on 24 November 2026:
 
-- No Storage buckets.
-- No app-update release migration applied.
-- No production `admin-publish-app-update` function.
-- No production `get-app-update-manifest` function.
-- No production `get-app-update-asset-url` function.
+- Applied migration: `20261120135855` / `add_signed_app_update_releases`.
+- Repository migration filename was aligned by merged Admin PR #18; do not reapply the migration to production.
+- Private bucket: `mahi-app-updates`, `public=false`, 157286400-byte limit, ZIP/APK MIME allowlist.
+- Edge Functions: `admin-publish-app-update` v2, `get-app-update-manifest` v1, and `get-app-update-asset-url` v1, all `ACTIVE` with JWT verification enabled.
+- Table: `public.app_update_releases`, RLS enabled, Owner-only authenticated read policy, immutable update/delete triggers and an after-insert private device broadcast trigger.
+- Current live counts: 0 published app-update releases, 0 registered devices, and 0 stored update assets. Therefore no device has yet completed the real update flow.
 
-The earlier PR #12 is a draft, and PR #29 is based on PR #12's feature branch. Do not merge these stacked PRs as-is or deploy their draft migration/functions directly to production.
+The release flow is: Owner publishes an immutable manifest from the standalone Admin Update Manager; the server validates private assets and signs canonical manifest bytes; the database inserts the release and emits an opaque `app_update_published` event to active registered Member devices; Android re-fetches the manifest using its Member JWT and registered device ID, verifies RSA-SHA256, and only then offers a data package or Android system-installer APK handoff.
 
-Required next steps:
+A 24 November audit found a client-side Realtime allowlist omission: Android's parser did not yet accept `app_update_published`. Android PR #36 adds the event and a regression test using the exact broadcast envelope. At the time this document was updated, its Android CI was still in progress; do not call the instant-notification fix deployed until PR #36 is merged to Android `main` and CI passes.
 
-1. Extract and review the update implementation from the feature branch.
-2. Rebase/port only the necessary code onto the current two-repository architecture.
-3. Add the App Update Manager to the standalone Admin repository.
-4. Add a reviewed, staged migration and a private Storage bucket with owner-publish and member-download policies.
-5. Deploy the three update Edge Functions to a staging environment first.
-6. Verify Owner-only publication, Member/device authorization, signed manifest bytes, object size/MIME/hash and short-lived signed URLs.
-7. Verify Android download integrity, archive traversal/zip-bomb defenses, atomic activation, local rollback and APK signing-certificate continuity on physical devices.
-8. Add per-device update outcome telemetry and Admin release status visibility.
-9. Promote to production only after staging and security acceptance.
+Remaining acceptance work:
+
+1. Complete and merge Android PR #36 only after Android CI passes.
+2. Verify the deployed RSA-3072 private signing secret matches the Android public key without revealing private material. The server-side publisher rejects publication when the signature does not verify against the Android public key.
+3. Complete an Owner PIN session and a real invited Member OTP sign-in.
+4. Register at least one real Android device and verify it appears under the correct Member.
+5. Publish a reviewed non-mandatory test release using a safe, signed data-only configuration/package; do not publish a fake release or use a dummy device.
+6. Verify the actual Android notification, authenticated manifest fetch, RSA verification, asset download digest/entry checks, atomic activation and rollback on a physical phone.
+7. Produce a production-signed APK/AAB with the existing upload key; verify certificate continuity and installer update on a physical phone.
+8. Record per-device update outcome telemetry and provide release history/status in Admin before claiming fleet-wide update acceptance.
+
+Remote configuration must remain data-only. No script execution, WebView injection, arbitrary shell commands, silent APK installation or signature bypass is allowed.
 
 Remote configuration must remain data-only. No script execution, WebView injection, arbitrary shell commands, silent APK installation or signature bypass is allowed.
 
@@ -201,7 +205,7 @@ The current Admin website URL is not a Remote Support API. The old local JSON st
 4. Prove the production recipe-signing key matches the Android public key.
 5. Complete a physical-device Member → Device → Tool → Repair → Admin report test.
 6. Produce and verify the stable production-signed APK/AAB.
-7. Port, stage and release the Live App Update Engine.
+7. Complete the deployed Live App Update Engine's real-device acceptance and signed production release.
 8. Complete optional Device Intelligence and Remote Support only after the core workflow is stable.
 
 ## 8. Safety boundaries
