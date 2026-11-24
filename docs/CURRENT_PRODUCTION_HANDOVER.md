@@ -31,7 +31,7 @@ The connected Supabase management API reported:
 - PostgreSQL: 17.11.
 - Ten production migrations recorded as applied, including `20261120135855_add_signed_app_update_releases`.
 - Twenty Edge Functions reported `ACTIVE`.
-- Sixteen Edge Functions require JWT verification. The Auth `send-email-hook` has JWT verification disabled because it validates the signed webhook signature itself.
+- Owner-only Admin Edge Functions require a valid JWT. The Member credential-exchange endpoint is JWT-disabled at the gateway because it performs its own Member ID/PIN lookup, profile-status validation, password authentication, and attempt rate limiting.
 - Ten public tables were listed; RLS was enabled on all ten.
 - Profiles: one active Owner and one active Member.
 - Devices: 0.
@@ -43,7 +43,7 @@ The connected Supabase management API reported:
 
 The private Storage bucket `mahi-app-updates` exists with `public=false`, a 150 MiB upload cap, and ZIP/APK MIME restrictions. The bucket currently has no stored release objects.
 
-The 20 active functions include the original 17 repair/admin functions plus `admin-publish-app-update` (v2), `get-app-update-manifest` (v1), and `get-app-update-asset-url` (v1). The three app-update functions all require JWT verification. The Auth `send-email-hook` is the one JWT-disabled hook and validates its signed webhook payload.
+The active function set includes repair/admin operations, Member credential creation/reset, Member ID/PIN session exchange, and app-update manifest/asset operations. Owner-only mutations require JWT; the Member ID/PIN login endpoint validates credentials and profile status itself. No email hook is part of the login contract.
 
 The profile roles/statuses were read-only inspected and showed one `owner/active` and one `member/active`. Do not change, promote, delete or repurpose either existing account as part of routine integration work.
 
@@ -72,9 +72,9 @@ The Render repository YAML declares `main` and `checksPass`. The last recorded p
 
 The active Next.js source includes:
 
-- One-time Owner Magic Link sign-in using the server-configured Auth identity, PKCE callback exchange and active Owner profile check. The shared email hook distinguishes the canonical Admin callback from Android Member OTP.
+- Owner PIN sign-in against the existing server-configured Auth identity, followed by an active Owner profile check. The email identity remains server-side and is never requested in the login UI.
 - Owner-protected dashboard and server actions.
-- Member invitation and Member status management.
+- Member ID/PIN creation, PIN reset and Member status management.
 - Device inventory and revoke/restore.
 - Repair Tool authoring, recipe schema validation and Test Lab.
 - Signed immutable tool publication, version history, disable/unpublish and member assignment.
@@ -85,7 +85,7 @@ The active Next.js source includes:
 
 The Kotlin app source includes:
 
-- Invite-only Supabase email OTP login.
+- Invite-only Supabase Member ID + 12-digit PIN login, with server-side session exchange and account-status checks.
 - Session refresh and encrypted local session/device identity handling.
 - Server-issued device registration and heartbeat.
 - Authenticated repair-tool sync into Room.
@@ -96,7 +96,7 @@ The Kotlin app source includes:
 - Private Supabase Realtime invalidation events and reconnect behavior.
 - A Member-only app architecture without an embedded Owner Admin screen.
 
-These are source-level capabilities. They are not proof of successful production credentials, deployed secret compatibility, email delivery, or physical-device operation.
+These are source-level capabilities. They are not proof of successful production credentials, deployed secrets, credential login, or physical-device operation.
 
 ## 4. Production acceptance gates still open
 
@@ -107,21 +107,20 @@ Do not publish a production tool or announce full production readiness until the
 - Confirm Render is serving this repository's `main` branch at the canonical `yy7c` hostname.
 - Confirm the deployed SHA is the reviewed release commit.
 - Confirm Render environment values exist with correct scopes.
-- Test Owner Magic Link delivery and callback, logout, refresh/session persistence and a protected Owner page.
+- Test Owner PIN login, logout, refresh/session persistence and a protected Owner page.
 - Confirm a Member identity is denied before any Owner-only session or page access is granted.
 
 The `/api/health` endpoint checks configuration shape only. It is not a successful Owner login or database integration test.
 
-### Gate B — Auth redirects and Member email delivery
+### Gate B — Member ID/PIN login and device authorization
 
 - Confirm live Supabase Auth Site URL is `https://mahi-repair-admin-yy7c.onrender.com`.
 - Confirm Additional Redirect URLs includes `https://mahi-repair-admin-yy7c.onrender.com/**`.
-- Confirm the Supabase Auth Send Email Hook is wired to the deployed `send-email-hook`.
-- Confirm the signed webhook secret and approved email-provider secrets are present in the correct secret store.
-- Verify sender-domain SPF/DKIM/DMARC and real inbox delivery using one consented test invitation.
-- Complete the invited Member's six-digit OTP sign-in in Android.
+- Apply the Member ID migration and deploy `admin-create-member`, `admin-reset-member-pin` and `member-login` Edge Functions.
+- Confirm Member credential issuance is restricted to an active Owner session and never returns the internal Auth identity.
+- Complete one Android Member ID + 12-digit PIN login; verify a normal Supabase session, device registration, and suspended-member rejection.
 
-Do not treat an ACTIVE hook function or a repository `config.toml` entry as proof of email delivery or live dashboard Auth URL configuration.
+No Auth email hook, OTP delivery, or email URL allowlist is needed for the Owner PIN / Member ID + PIN sign-in path.
 
 ### Gate C — recipe-signing key match
 
@@ -181,7 +180,7 @@ Remaining acceptance work:
 
 1. Complete and merge Android PR #36 only after Android CI passes.
 2. Verify the deployed RSA-3072 private signing secret matches the Android public key without revealing private material. The server-side publisher rejects publication when the signature does not verify against the Android public key.
-3. Complete an Owner PIN session and a real invited Member OTP sign-in.
+3. Complete an Owner PIN session and a real Member ID + PIN sign-in.
 4. Register at least one real Android device and verify it appears under the correct Member.
 5. Publish a reviewed non-mandatory test release using a safe, signed data-only configuration/package; do not publish a fake release or use a dummy device.
 6. Verify the actual Android notification, authenticated manifest fetch, RSA verification, asset download digest/entry checks, atomic activation and rollback on a physical phone.
@@ -202,7 +201,7 @@ The current Admin website URL is not a Remote Support API. The old local JSON st
 
 1. Confirm canonical Render deployment, environment and Auth URL configuration.
 2. Test Owner PIN authentication.
-3. Verify Send Email Hook and actual Member invitation/OTP delivery.
+3. Verify Member credential issuance, login rate limits, device enrollment, and suspended-account rejection.
 4. Prove the production recipe-signing key matches the Android public key.
 5. Complete a physical-device Member → Device → Tool → Repair → Admin report test.
 6. Produce and verify the stable production-signed APK/AAB.

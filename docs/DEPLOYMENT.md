@@ -64,7 +64,7 @@ The Owner Auth identifier belongs only in the server-side host environment:
 ADMIN_OWNER_EMAIL=THE_EXISTING_OWNER_AUTH_EMAIL
 ~~~
 
-Never put an Owner PIN, Supabase service-role/secret key, database password, access token, email-provider credential or RSA private signing key in source control, browser variables, Android resources or chat.
+Never put an Owner PIN, Member PIN, Supabase service-role/secret key, database password, access token or RSA private signing key in source control, browser variables, Android resources or chat.
 
 ## 3. Verify the website build
 
@@ -95,27 +95,19 @@ Required environment values:
 | `NEXT_PUBLIC_APP_URL` | Browser-safe | Exact canonical Admin origin, no trailing slash |
 | `ADMIN_OWNER_EMAIL` | Server-only | Existing Owner Auth identity; never use the `NEXT_PUBLIC_` prefix |
 
-The `/api/health` endpoint reports whether required configuration values are present. It does not prove that Owner authentication succeeds, that database queries work, or that email delivery and recipe signing are ready.
+The `/api/health` endpoint reports whether required configuration values are present. It does not prove that Owner or Member credential authentication succeeds, database queries work, or recipe signing is ready.
 
 After deployment, verify:
 
 1. The production site and `/login` load over HTTPS.
 2. `/api/health` returns HTTP 200 and `ready: true`.
 3. The deployed commit SHA matches the intended reviewed `main` commit.
-4. Owner Magic Link login succeeds and Member identities are denied from Owner-only routes.
+4. Owner PIN login succeeds and Member identities are denied from Owner-only routes.
 5. Server logs do not expose PINs, tokens, email credentials or signing material.
 
-## 5. Owner Magic Link authentication
+## 5. Owner PIN authentication
 
-The Owner enters the configured email address and requests a one-time Supabase Magic Link. The server action:
-
-- Accepts only the server-configured `ADMIN_OWNER_EMAIL` identity.
-- Calls `signInWithOtp` with `shouldCreateUser: false`; it cannot create a new Owner account.
-- Redirects only to the canonical Admin `/auth/callback` endpoint.
-- Exchanges the PKCE authorization code, then verifies the authenticated email matches `ADMIN_OWNER_EMAIL` and the database profile is `role = 'owner'` and `status = 'active'`.
-- Signs out and denies access for every Member, unknown or inactive account.
-
-The Admin Send Email Hook sends a clickable link only when the redirect is the standalone Admin callback. Android Member OTP requests continue to receive a six-digit code; do not change the shared Auth email template to a link-only template.
+The Owner enters an 8–12 digit PIN. The server action uses the server-only `ADMIN_OWNER_EMAIL` to authenticate against the existing Supabase Auth account with `signInWithPassword`, then verifies that the matching profile has `role = 'owner'` and `status = 'active'`. The Owner Auth email remains an internal server setting; the login UI never requests it. Member identities are denied from Owner-only routes. Keep the PIN private and rotate it through the approved Supabase Auth administration path if it is compromised.
 
 Required Render values:
 
@@ -129,7 +121,7 @@ Required Supabase Auth URL configuration:
 - Site URL: `https://mahi-repair-admin-yy7c.onrender.com`.
 - Additional Redirect URLs: `https://mahi-repair-admin-yy7c.onrender.com/**` (or the exact `/auth/callback` URL) and the local callback only for local development.
 
-The Auth Send Email Hook must remain enabled and have valid provider credentials. It uses the configured Resend/Brevo provider secrets; a successful API request alone does not prove inbox delivery. Verify one Owner Magic Link in the real inbox and separately verify the Android Member OTP code flow. If Auth email rate limits are reached, wait for the provider window or adjust the configured provider/rate limits; do not switch the shared Member template to Magic Link-only.
+No email provider or Auth Send Email Hook is required for this credential sign-in architecture. Member authentication uses an Owner-issued Member ID + 12-digit PIN and a server-side Edge Function that returns a regular Supabase session without sending email.
 
 ## 6. Supabase project, migrations and Edge Functions
 
@@ -171,10 +163,10 @@ The same inspection found 17 ACTIVE production Edge Functions:
 - `get-my-repair-tools`
 - `get-signed-repair-tool`
 - `register-device`
-- `send-email-hook`
+- `member-login`
 - `submit-repair-run`
 
-All 17 were reported ACTIVE at inspection time. Sixteen require JWT verification; `send-email-hook` has JWT verification disabled because it validates the signed Supabase Auth webhook signature. Re-check current production state before each release; function ACTIVE status alone does not prove end-to-end behavior.
+Re-check the active function set before each release. Owner-only Admin functions require JWT; `member-login` is the only unauthenticated gateway endpoint and authenticates Member ID/PIN in its handler with rate limiting.
 
 The public schema had nine tables with RLS enabled. The live database contained one active Owner profile and one active Member profile, but no registered devices, repair tools, published tool versions, repair runs or audit events at the time of inspection.
 
@@ -193,7 +185,7 @@ The public/private key match was not verifiable through the connected management
 - Do not generate a replacement key as a shortcut; coordinate any key rotation across the signer and Android verifier.
 - Use a signing verification test that returns only pass/fail and safe key fingerprints, never secret material.
 
-## 8. Member invitation and email OTP
+## 8. Member ID and PIN provisioning
 
 Member onboarding is separate from Owner PIN login.
 
@@ -244,7 +236,7 @@ Verify:
 Do not declare the product production-ready until the following complete on an actual Android handset:
 
 - Owner PIN login and Owner-only Admin access.
-- Member invite email received and Android OTP sign-in completed.
+- Member ID + PIN issued by Owner and Android credential sign-in completed.
 - Device appears under the correct Member in Admin.
 - RSA private/public signing key match proven without exposing the private key.
 - Owner creates, validates, publishes and assigns a safe repair tool.
@@ -278,4 +270,4 @@ A separate, reviewed implementation and deployment process is required for the A
 
 ## Release decision
 
-**NOT FULLY PRODUCTION READY.** The shared Supabase project, schema, RLS tables, core Edge Functions and separate Admin source are in place. Live Owner authentication, email delivery, signing-key compatibility, physical-device enrolment, end-to-end Repair execution/reporting, production Android signing and the App Update Engine still require evidence.
+**NOT FULLY PRODUCTION READY.** The shared Supabase project, schema, RLS tables, core Edge Functions and separate Admin source are in place. Live Owner/Member credential authentication, signing-key compatibility, physical-device enrolment, end-to-end Repair execution/reporting, production Android signing and the App Update Engine still require evidence.

@@ -50,9 +50,9 @@ The application starts with `npm run start` after a successful production build.
 
 The Admin website and Android client in [mahimahfud-ui/Mahi-Repair](https://github.com/mahimahfud-ui/Mahi-Repair) are separate clients of the same Supabase project (`shwqsljicmhflnvjqjah`). The APK does not embed Admin routes, Owner credentials, the service-role key or the recipe-signing private key.
 
-- Owner web path: the Owner enters the configured email address and requests a one-time Magic Link. The server sends only to `ADMIN_OWNER_EMAIL`, disables automatic account creation, exchanges the PKCE callback and verifies `profiles.role='owner' AND status='active'` before granting console access. The Send Email Hook delivers a clickable link only to the Admin callback; Android Member email OTP remains a six-digit code.
-- Android Member path: Supabase email OTP → device registration → authorized published-recipe retrieval → on-device RSA signature verification → native allowlisted action execution → run-report submission. Member invitations and Android OTP remain separate Member-onboarding email flows.
-- Admin operations: Member invitations/status, device revoke/restore, recipe drafting/validation/publication, tool state and assignment, analytics, audit records and execution logs.
+- Owner web path: the Owner enters an 8–12 digit PIN. The server signs in only against the existing server-configured Owner Auth identity and then verifies `profiles.role='owner' AND status='active'`. The Owner identity email remains an internal server setting and is never requested or shown in the UI.
+- Android Member path: Member ID + PIN → a server-side lookup and Supabase password session → device registration → authorized published-recipe retrieval → on-device RSA signature verification → native allowlisted action execution → run-report submission. Member IDs and PINs are generated in the Owner Console; no member email invitations or OTP emails are used.
+- Admin operations: Member credential creation/reset/status, device revoke/restore, recipe drafting/validation/publication, tool state and assignment, analytics, audit records and execution logs.
 - Report retries: Android reuses the same `run_id` as the `repair_runs.id` primary key; a SHA-256 fingerprint makes identical retries idempotent and rejects altered content or a different Member reusing the UUID.
 - Live catalogue updates: private Realtime broadcasts carry opaque event IDs; clients refetch through authenticated endpoints. Realtime events never contain recipes or authorization decisions.
 
@@ -62,7 +62,7 @@ See the [Android API contract](docs/ANDROID_API_CONTRACT.md), [security model](d
 
 The current backend is Supabase. Firebase/Cloud Run references found in the Android repository are historical migration/staging material and are not the active Admin/Android runtime contract. Do not provision a second backend or migrate clients unless a separately approved architecture change replaces this shared Supabase contract.
 
-The source tree and CI checks do not, by themselves, prove that production secrets, Auth email delivery, signing-key compatibility, deployed migrations, device registration or the complete physical-device repair workflow are working. Follow the current production handover before declaring the product production-ready.
+The source tree and CI checks do not, by themselves, prove that production secrets, credential login, signing-key compatibility, deployed migrations, device registration or the complete physical-device repair workflow are working. Follow the current production handover before declaring the product production-ready.
 
 ## Security boundaries
 
