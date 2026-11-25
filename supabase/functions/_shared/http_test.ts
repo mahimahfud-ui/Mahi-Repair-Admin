@@ -73,11 +73,11 @@ Deno.test('member invitation redirects must remain on the configured HTTPS Admin
 });
 
 Deno.test('CORS defaults to the fixed production Admin origin when no override is set', () => {
-  const production = 'https://mahi-repair-admin-yy7c.onrender.com';
+  const production = 'https://mahi-repair-admin.onrender.com';
   if (!isAllowedCorsOrigin(production, undefined)) {
     throw new Error('The canonical production Admin origin was not accepted as the default');
   }
-  if (isAllowedCorsOrigin('https://mahi-repair-admin.onrender.com', undefined)) {
+  if (isAllowedCorsOrigin('https://mahi-repair-admin-yy7c.onrender.com', undefined)) {
     throw new Error('The retired Render origin was accepted as the production default');
   }
   if (isAllowedCorsOrigin('https://untrusted.example.com', undefined)) {
