@@ -41,13 +41,14 @@ export function MemberCredentialCreateForm() {
     const formData = new FormData(event.currentTarget);
     setError('');
     setCredentials(null);
-    startTransition(() => {
-      createMemberAccount(formData).then((result) => {
+    startTransition(async () => {
+      try {
+        const result = await createMemberAccount(formData);
         setCredentials(result);
         setName('');
-      }).catch((cause: unknown) => {
+      } catch (cause) {
         setError(cause instanceof Error ? cause.message : 'Could not create the Member account.');
-      });
+      }
     });
   }
 
@@ -73,10 +74,12 @@ export function MemberCredentialResetButton({ userId, hasMemberCode }: { userId:
   function issueOrReset() {
     setError('');
     setCredentials(null);
-    startTransition(() => {
-      resetMemberPin(userId).then(setCredentials).catch((cause: unknown) => {
+    startTransition(async () => {
+      try {
+        setCredentials(await resetMemberPin(userId));
+      } catch (cause) {
         setError(cause instanceof Error ? cause.message : 'Could not issue the Member PIN.');
-      });
+      }
     });
   }
 
