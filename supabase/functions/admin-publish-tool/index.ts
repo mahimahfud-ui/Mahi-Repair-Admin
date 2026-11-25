@@ -1,7 +1,7 @@
 import { requireOwner, respond, preflight, handleError, jsonBody, rateLimit } from '../_shared/http.ts';
 import { z } from 'npm:zod@4';
 import { RecipeSchema, canonicalJson } from '../_shared/recipe.ts';
-import { signCanonicalPayload } from '../_shared/sign.ts';
+import { signCanonicalPayload, verifyCanonicalPayloadSignature } from '../_shared/sign.ts';
 Deno.serve(async(req)=>{if(req.method==='OPTIONS')return preflight(req);try{
  const {user,admin}=await requireOwner(req);await rateLimit(admin,`publish:${user.id}`,8,60);const body=await jsonBody(req);const Input=z.object({tool_id:z.string().uuid(),source_version_id:z.string().uuid().optional(),changelog:z.string().max(2000).optional()}).strict();const parsed=Input.safeParse(body);if(!parsed.success)return respond(req,{error:{code:'INVALID_PUBLISH_REQUEST',issues:parsed.error.issues}},422);
  const {data:tool,error}=await admin.from('repair_tools').select('id,slug,status,version,draft_recipe').eq('id',parsed.data.tool_id).single();if(error||!tool)throw Object.assign(new Error('Tool not found'),{status:404});
