@@ -6,7 +6,7 @@ import { RepairRecipeSchema } from '@/lib/recipe/catalog';
 import { requireOwner } from '@/lib/auth/require-owner';
 import { isValidOwnerAuthEmail, isValidOwnerPin } from '@/lib/auth/owner-pin';
 
-const ADMIN_FUNCTIONS = new Set(['admin-invite-member','admin-create-member','admin-reset-member-pin','admin-manage-member','admin-upsert-tool','admin-publish-tool','admin-disable-tool','admin-assign-tool','admin-save-validation','admin-delete-draft-tool','admin-manage-device','admin-manage-tool-state','get-admin-analytics']);
+const ADMIN_FUNCTIONS = new Set(['admin-invite-member','admin-create-member','admin-reset-member-pin','admin-publish-app-update','admin-manage-member','admin-upsert-tool','admin-publish-tool','admin-disable-tool','admin-assign-tool','admin-save-validation','admin-delete-draft-tool','admin-manage-device','admin-manage-tool-state','get-admin-analytics']);
 
 export type OwnerPinSignInResult =
   | { ok: false; reason: 'invalid' | 'rate_limited' | 'configuration' | 'failed' };
@@ -115,10 +115,10 @@ function readMemberCredentials(response: unknown): MemberCredentials {
   return { member_code: value.member_code, pin: value.pin, display_name: value.display_name };
 }
 
-export async function createMemberAccount(formData: FormData): Promise<MemberCredentials> {
-  const displayName = String(formData.get('display_name') ?? '').trim();
-  if (displayName.length < 2 || displayName.length > 80) throw new Error('Enter a name between 2 and 80 characters.');
-  const result = await invokeAdminFunction('admin-create-member', { display_name: displayName });
+export async function createMemberAccess(displayName: string): Promise<MemberCredentials> {
+  const cleanName = String(displayName ?? '').trim();
+  if (cleanName.length < 2 || cleanName.length > 80) throw new Error('Enter a member name between 2 and 80 characters.');
+  const result = await invokeAdminFunction('admin-create-member', { display_name: cleanName });
   const credentials = readMemberCredentials(result);
   revalidatePath('/members');
   return credentials;
@@ -156,5 +156,53 @@ export async function deleteDraftTool(formData:FormData){
   const result = await invokeAdminFunction('admin-delete-draft-tool',{tool_id:id});
   revalidatePath('/tools');return result;
 }
+
+/**
+ * Publish a validated, immutable app-update manifest. The Edge Function performs
+ * strict schema checks, verifies every private Storage object and signs the
+ * canonical payload with the server-only RSA-3072 signing key.
+ */
+export async function publishAppUpdate(formData: FormData) {
+  await requireOwner();
+  const channel = String(formData.get('channel') ?? 'stable');
+  const releaseNumber = Number(formData.get('release_number'));
+  const appVersionCode = Number(formData.get('app_version_code'));
+  const minSupportedAppVersionCode = Number(formData.get('min_supported_app_version_code'));
+  const appVersionName = String(formData.get('app_version_name') ?? '').trim();
+  const mandatory = String(formData.get('mandatory') ?? '') === 'on';
+  const releaseNotes = String(formData.get('release_notes') ?? '').trim();
+
+  if (!['stable', 'beta'].includes(channel)) throw new Error('Select a valid release channel.');
+  if (![releaseNumber, appVersionCode, minSupportedAppVersionCode].every((value) => Number.isSafeInteger(value) && value > 0)) {
+    throw new Error('Release and Android version codes must be positive integers.');
+  }
+  if (appVersionName.length > 40 || releaseNotes.length > 4000) throw new Error('Release metadata is too long.');
+
+  const parseJsonField = (name: string, fallback: unknown) => {
+    const raw = String(formData.get(name) ?? '');
+    if (!raw.trim()) return fallback;
+    try { return JSON.parse(raw) as unknown; }
+    catch { throw new Error(`${name.replaceAll('_', ' ')} must be valid JSON.`); }
+  };
+
+  const payload = {
+    channel,
+    releaseNumber,
+    appVersionCode,
+    appVersionName,
+    minSupportedAppVersionCode,
+    mandatory,
+    releaseNotes,
+    remoteConfig: parseJsonField('remote_config_json', {}),
+    packages: parseJsonField('packages_json', []),
+    nativeApk: parseJsonField('native_apk_json', null),
+  };
+
+  await invokeAdminFunction('admin-publish-app-update', payload);
+  revalidatePath('/updates');
+  revalidatePath('/');
+  redirect('/updates?published=1');
+}
+
 
 export async function setDeviceRevoked(formData:FormData){const deviceId=String(formData.get('device_id')??'');const revoked=String(formData.get('revoked')??'true')==='true';await invokeAdminFunction('admin-manage-device',{device_id:deviceId,revoked});revalidatePath('/members');}
