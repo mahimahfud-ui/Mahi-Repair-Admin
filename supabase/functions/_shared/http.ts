@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
-const DEFAULT_ADMIN_ORIGIN = 'https://mahi-repair-admin.onrender.com';
+const DEFAULT_ADMIN_ORIGIN = 'https://mahi-repair-admin-yy7c.onrender.com';
 
 function configuredAdminOrigin(): string {
   // This deployment has one canonical Owner Console origin. Ignore stale
