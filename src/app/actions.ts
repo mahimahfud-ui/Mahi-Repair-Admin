@@ -4,32 +4,53 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { RepairRecipeSchema } from '@/lib/recipe/catalog';
 import { requireOwner } from '@/lib/auth/require-owner';
-import { isConfiguredActiveOwner } from '@/lib/auth/owner-access';
-import { isValidOwnerAuthEmail } from '@/lib/auth/owner-auth';
-import { isValidOwnerPin } from '@/lib/auth/owner-pin';
+import { isValidOwnerAuthEmail, isValidOwnerPin } from '@/lib/auth/owner-pin';
 
-const ADMIN_FUNCTIONS = new Set(['admin-create-member','admin-reset-member-pin','admin-manage-member','admin-upsert-tool','admin-publish-tool','admin-disable-tool','admin-assign-tool','admin-save-validation','admin-delete-draft-tool','admin-manage-device','admin-manage-tool-state','get-admin-analytics','admin-publish-app-update']);
+const ADMIN_FUNCTIONS = new Set(['admin-invite-member','admin-manage-member','admin-upsert-tool','admin-publish-tool','admin-disable-tool','admin-assign-tool','admin-save-validation','admin-delete-draft-tool','admin-manage-device','admin-manage-tool-state','get-admin-analytics']);
 
-export async function signInWithOwnerPin(pin: string) {
+export type OwnerPinSignInResult =
+  | { ok: false; reason: 'invalid' | 'rate_limited' | 'configuration' | 'failed' };
+
+/**
+ * The browser submits only the Owner PIN. The configured Owner Auth email is
+ * server-only; no Owner email, OTP or Magic Link is requested by this action.
+ * Supabase Auth creates the normal SSR session used by existing Owner checks.
+ */
+export async function signInWithOwnerPin(pin: string): Promise<OwnerPinSignInResult> {
   const ownerEmail = process.env['ADMIN_OWNER_EMAIL']?.trim().toLowerCase();
-  if (!isValidOwnerAuthEmail(ownerEmail)) return { ok: false as const, reason: 'configuration' as const };
-  if (!isValidOwnerPin(pin)) return { ok: false as const, reason: 'invalid' as const };
-
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.signInWithPassword({ email: ownerEmail, password: pin });
-  if (error || !data.user) {
-    const status = (error as { status?: number } | null)?.status;
-    const message = error?.message.toLowerCase() ?? '';
-    if (status === 429 || message.includes('rate limit')) return { ok: false as const, reason: 'rate_limited' as const };
-    return { ok: false as const, reason: 'invalid' as const };
+  if (!isValidOwnerAuthEmail(ownerEmail)) {
+    return { ok: false, reason: 'configuration' };
+  }
+  if (!isValidOwnerPin(pin)) {
+    return { ok: false, reason: 'invalid' };
   }
 
-  const { data: profile, error: profileError } = await supabase.from('profiles')
-    .select('role,status').eq('id', data.user.id).maybeSingle();
-  if (profileError || !isConfiguredActiveOwner(data.user.email, ownerEmail, profile)) {
-    await supabase.auth.signOut();
-    return { ok: false as const, reason: 'invalid' as const };
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: ownerEmail,
+      password: pin,
+    });
+
+    if (error || !data.user) {
+      const status = (error as { status?: number } | null)?.status;
+      return { ok: false, reason: status === 429 ? 'rate_limited' : 'invalid' };
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role,status')
+      .eq('id', data.user.id)
+      .maybeSingle();
+
+    if (profileError || profile?.role !== 'owner' || profile.status !== 'active') {
+      await supabase.auth.signOut();
+      return { ok: false, reason: 'invalid' };
+    }
+  } catch {
+    return { ok: false, reason: 'failed' };
   }
+
   redirect('/');
 }
 
@@ -76,19 +97,7 @@ export async function publishTool(formData:FormData){const id=String(formData.ge
 export async function republishVersion(formData:FormData){const toolId=String(formData.get('tool_id')??'');const sourceVersionId=String(formData.get('source_version_id')??'');const changelog=String(formData.get('changelog')??'Republished prior version');await invokeAdminFunction('admin-publish-tool',{tool_id:toolId,source_version_id:sourceVersionId,changelog});revalidatePath('/tools');revalidatePath('/publishing');revalidatePath('/versions');}
 export async function setToolDisabled(formData:FormData){const toolId=String(formData.get('tool_id')??'');const disabled=String(formData.get('disabled')??'true')==='true';await invokeAdminFunction('admin-disable-tool',{tool_id:toolId,disabled});revalidatePath('/tools');revalidatePath('/publishing');}
 export async function setToolState(formData:FormData){const toolId=String(formData.get('tool_id')??'');const status=String(formData.get('status')??'DRAFT');await invokeAdminFunction('admin-manage-tool-state',{tool_id:toolId,status});revalidatePath('/tools');revalidatePath('/publishing');}
-export async function createMemberAccess(displayName: string) {
-  const cleanName = String(displayName ?? '').trim();
-  if (cleanName.length < 2 || cleanName.length > 80) throw new Error('Enter a member name between 2 and 80 characters.');
-  const result = await invokeAdminFunction('admin-create-member', { display_name: cleanName });
-  revalidatePath('/members');
-  return result.data as { member_code: string; pin: string; display_name: string };
-}
-export async function resetMemberPin(userId: string) {
-  if (!/^[0-9a-f-]{36}$/i.test(userId)) throw new Error('Invalid member account.');
-  const result = await invokeAdminFunction('admin-reset-member-pin', { user_id: userId });
-  revalidatePath('/members');
-  return result.data as { member_code: string; pin: string; display_name: string };
-}
+export async function inviteMember(formData:FormData){const email=String(formData.get('email')??'').trim();await invokeAdminFunction('admin-invite-member',{email});revalidatePath('/members');}
 export async function setMemberStatus(formData:FormData){const userId=String(formData.get('user_id')??'');const status=String(formData.get('status')??'suspended');await invokeAdminFunction('admin-manage-member',{user_id:userId,status});revalidatePath('/members');}
 export async function assignTool(formData:FormData){const toolId=String(formData.get('tool_id')??'');const audience=String(formData.get('audience')??'all_active_members');const memberIds=formData.getAll('member_ids').map(x=>String(x).trim()).filter(Boolean);await invokeAdminFunction('admin-assign-tool',{tool_id:toolId,audience,...(audience==='selected_members'?{member_ids:memberIds}:{})});revalidatePath('/tools');}
 
@@ -112,50 +121,3 @@ export async function deleteDraftTool(formData:FormData){
 }
 
 export async function setDeviceRevoked(formData:FormData){const deviceId=String(formData.get('device_id')??'');const revoked=String(formData.get('revoked')??'true')==='true';await invokeAdminFunction('admin-manage-device',{device_id:deviceId,revoked});revalidatePath('/members');}
-
-/**
- * Publish a validated, immutable app-update manifest. The Edge Function performs
- * strict schema checks, verifies every private Storage object and signs the
- * canonical payload with the server-only RSA-3072 signing key.
- */
-export async function publishAppUpdate(formData: FormData) {
-  await requireOwner();
-  const channel = String(formData.get('channel') ?? 'stable');
-  const releaseNumber = Number(formData.get('release_number'));
-  const appVersionCode = Number(formData.get('app_version_code'));
-  const minSupportedAppVersionCode = Number(formData.get('min_supported_app_version_code'));
-  const appVersionName = String(formData.get('app_version_name') ?? '').trim();
-  const mandatory = String(formData.get('mandatory') ?? '') === 'on';
-  const releaseNotes = String(formData.get('release_notes') ?? '').trim();
-
-  if (!['stable', 'beta'].includes(channel)) throw new Error('Select a valid release channel.');
-  if (![releaseNumber, appVersionCode, minSupportedAppVersionCode].every((value) => Number.isSafeInteger(value) && value > 0)) {
-    throw new Error('Release and Android version codes must be positive integers.');
-  }
-  if (appVersionName.length > 40 || releaseNotes.length > 4000) throw new Error('Release metadata is too long.');
-
-  const parseJsonField = (name: string, fallback: unknown) => {
-    const raw = String(formData.get(name) ?? '');
-    if (!raw.trim()) return fallback;
-    try { return JSON.parse(raw) as unknown; }
-    catch { throw new Error(`${name.replaceAll('_', ' ')} must be valid JSON.`); }
-  };
-
-  const payload = {
-    channel,
-    releaseNumber,
-    appVersionCode,
-    appVersionName,
-    minSupportedAppVersionCode,
-    mandatory,
-    releaseNotes,
-    remoteConfig: parseJsonField('remote_config_json', {}),
-    packages: parseJsonField('packages_json', []),
-    nativeApk: parseJsonField('native_apk_json', null),
-  };
-
-  await invokeAdminFunction('admin-publish-app-update', payload);
-  revalidatePath('/updates');
-  revalidatePath('/');
-  redirect('/updates?published=1');
-}

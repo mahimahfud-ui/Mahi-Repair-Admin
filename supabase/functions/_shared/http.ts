@@ -1,13 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
-const DEFAULT_ADMIN_ORIGIN = 'https://mahi-repair-admin-yy7c.onrender.com';
-
-function configuredAdminOrigin(): string {
-  // This deployment has one canonical Owner Console origin. Ignore stale
-  // ADMIN_ORIGIN values so invite links cannot target a retired Render service.
-  return DEFAULT_ADMIN_ORIGIN;
-}
-
 export function normalizeAdminOrigin(configured: string | undefined): string | null {
   if (!configured) return null;
   try {
@@ -34,7 +26,7 @@ export function isAllowedCorsOrigin(origin: string | null, configured: string | 
   }
   if (parsed.origin !== origin || parsed.username !== '' || parsed.password !== '') return false;
 
-  const adminOrigin = normalizeAdminOrigin(configured?.trim() || DEFAULT_ADMIN_ORIGIN);
+  const adminOrigin = normalizeAdminOrigin(configured);
   if (adminOrigin && origin === adminOrigin) return true;
 
   return parsed.protocol === 'http:' &&
@@ -42,7 +34,7 @@ export function isAllowedCorsOrigin(origin: string | null, configured: string | 
 }
 
 export function requireAdminOrigin(): string {
-  const configured = configuredAdminOrigin();
+  const configured = Deno.env.get('ADMIN_ORIGIN');
   const origin = normalizeAdminOrigin(configured);
   if (!origin) {
     throw Object.assign(
@@ -67,7 +59,7 @@ export function isSameAdminOriginRedirect(candidate: string, adminOrigin: string
 
 export const corsHeaders = (request: Request) => {
   const origin = request.headers.get('origin');
-  const configured = configuredAdminOrigin();
+  const configured = Deno.env.get('ADMIN_ORIGIN');
   const allowed = isAllowedCorsOrigin(origin, configured);
 
   const headers: Record<string, string> = {

@@ -57,9 +57,7 @@ Never include personal files, messages, credentials, photos or unrelated device 
 
 All admin endpoints require an active owner profile. They are not callable by member accounts:
 
-- `admin-create-member`: `{ "display_name": "Member name" }` — creates an account and returns a one-time `member_code` + `pin` to the Owner Console.
-- `admin-reset-member-pin`: `{ "user_id": "<member UUID>" }` — issues a new 12-digit PIN and ensures the member has a Member ID.
-- `member-login`: `{ "member_code": "MR-XXXXXXXX", "pin": "12 digits" }` — public session-exchange endpoint; resolves the Auth identity server-side, rejects non-active members, rate-limits attempts, and returns a scoped Supabase session. It never accepts an email address.
+- `admin-invite-member`: `{ "email": "member@example.com", "redirect_to": "https://admin.example.com/auth/callback" }`
 - `admin-manage-member`: `{ "user_id": "uuid", "status": "active|suspended|revoked" }`
 - `admin-upsert-tool`: `{ "id"?: "uuid", "name": "...", "slug": "...", "category": "apps", "description": "...", "draft_recipe": {} }`
 - `admin-publish-tool`: `{ "tool_id": "uuid", "changelog": "..." }`; optional `source_version_id` republishes a previous payload as a **new** signed version.

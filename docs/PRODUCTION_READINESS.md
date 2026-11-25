@@ -1,103 +1,90 @@
-# Mahi Repair — production readiness (verified 11 November 2026)
+# Mahi Repair — production readiness
 
-This document separates verified production state from work that is still blocked. A successful deployment or CI run is not an end-to-end acceptance test.
+This checklist separates code/CI evidence from checks that must be performed against the actual production Render, Supabase and Android environments. A passing CI workflow is not a production acceptance test.
 
-## Verified production state
+## Implemented in the branch and covered by current PR CI
 
-### Admin web service
-- Canonical Render service: `mahi-repair-admin` (Singapore, Node.js 22.23.4, Free plan).
-- Actual assigned public origin: `https://mahi-repair-admin-yy7c.onrender.com`; the shorter hostname does not resolve to this service.
-- Connected Git repository/branch: `mahimahfud-ui/Mahi-Repair-Admin` / `main`; deployed commit: `f4bc174cc2152fc88d92f0e62b24b981e97f9098`.
-- Deployment `dep-dbq99spkl3bs73es29jg` completed successfully and Render reports the service as LIVE.
-- The app exposes `/api/health` as a no-store configuration-readiness endpoint: `status=configured` and HTTP 200 only when required values are present; otherwise `status=misconfigured` and HTTP 503. A live fetch on 11 November 2026 returned `ready=true` with Supabase URL, publishable-key format and Owner identity checks all true. A live fetch of `/login` also confirmed the PIN login page loads. This does not prove a successful Supabase database request or Owner PIN authentication.
-- The Render log integration currently exposes `app` and `build` logs, but not `request` logs. Route-specific HTTP status codes for `/login` and `/auth/callback` therefore cannot currently be independently verified from Render telemetry.
+- [x] Separate native Android client, private Next.js Admin Panel and Supabase backend.
+- [x] Minimal Android home with one RUN REPAIR action and a published-tool picker after the user taps it.
+- [x] Invite-only email OTP auth implementation with account creation disabled.
+- [x] Owner login UI accepts only an 8–12 digit numeric PIN; no Owner email/OTP/Magic Link request is exposed in the browser.
+- [x] Server action authenticates the PIN against the existing Owner Supabase Auth account using server-only `ADMIN_OWNER_EMAIL`, then requires an active Owner profile and signs out any non-Owner session.
+- [x] PIN validation and server-only Owner Auth identifier validation have unit-test coverage; rate-limited password sign-in receives safe user-facing feedback.
+- [x] Owner PIN tests cover 8–12 digit values, leading zeroes, invalid PINs and malformed/oversized server-side Owner identifiers.
+- [x] Android Keystore-backed AES-GCM session storage and serialized refresh-token rotation implementation.
+- [x] Server-issued device identity and server-side member/device authorization implementation.
+- [x] Canonical recipe v1 schema, strict parameter validation and shared contract fixtures.
+- [x] Canonical JSON serialization and RSA-SHA256 detached signing implementation.
+- [x] Android signature-verification implementation and fresh online authorization before execution.
+- [x] Native action allowlist; no remote script, shell, DEX, JAR, APK or arbitrary code execution by design.
+- [x] Private per-member/per-device Realtime Broadcast migration source and Android foreground WebSocket listener.
+- [x] Private Owner-only Admin broadcast channel and web client invalidation listener with polling fallback.
+- [x] Idempotent Android `run_id` report acceptance source: the UUID is stored as `repair_runs.id` with request fingerprint and retry conflict checks.
+- [x] Atomic member catalogue, signed-recipe fetch and device registration RPC source.
+- [x] Opaque Realtime events only; Android refetches and verifies the authorized catalogue. Launch/foreground/reconnect and WorkManager sync provide recovery.
+- [x] Current-head Android unit tests and debug APK assembly.
+- [x] Current-head Android Compose UI emulator tests (API 35).
+- [x] Current-head source and generated-debug-APK privileged-secret marker scans.
+- [x] Current-head Supabase CI: all 15 Edge Function entrypoints/shared modules type-check; canonical recipe/run-report tests pass.
+- [x] Current-head Admin CI: dependency audit, scaffold/security checks, TypeScript, ESLint, Vitest and Next.js production build pass.
+- [x] Node.js 22.23.4 pinned across Render, Admin Panel and Admin Panel CI.
+- [x] Protected production workflow source for migration preview/apply and JWT-verified deployment of all 15 Edge Functions.
 
-### Production environment configuration
-The Render service has been configured with:
-- The Supabase project URL and enabled publishable key.
-- `NEXT_PUBLIC_APP_URL` set to the actual generated Render origin above.
-- Server-only `ADMIN_OWNER_EMAIL` remains an internal identifier for the existing Owner Auth account; the Owner login form asks only for the PIN.
+Current PR head: `610e36d08aae3a433c38bddf84f68b5603a610d1`. Admin CI run [#42273636482](https://github.com/mahimahfud-ui/Mahi-Repair-Admin/actions/runs/42273636482) passed after the Owner PIN change.
 
-The values are intentionally not reproduced in this document. No service-role key, password, PIN, SMTP credential, private signing key or other secret belongs in a public repository or client build.
+Evidence:
+- [Android CI](https://github.com/mahimahfud-ui/Mahi-Repair/actions/runs/42167251879)
+- [Supabase Edge Functions CI](https://github.com/mahimahfud-ui/Mahi-Repair/actions/runs/42167251882)
+- [Admin Panel CI](https://github.com/mahimahfud-ui/Mahi-Repair/actions/runs/42167251933)
+- [Debug APK artifact](https://github.com/mahimahfud-ui/Mahi-Repair/actions/runs/42167251879/artifacts/13479439548)
 
-### Supabase backend
-- Project ref: `shwqsljicmhflnvjqjah`; project reports `ACTIVE_HEALTHY`; PostgreSQL 17.
-- The production migration history contains 9 applied migration entries.
-- Owner-only Edge Functions require JWT. The new `member-login` endpoint is intentionally JWT-disabled at the gateway and performs its own strict Member ID/PIN authentication, rate limiting, and active-profile validation.
-- RLS is enabled on all 9 public tables and on `realtime.messages`.
-- The public schema has no `anon` table grants; `authenticated` table grants are read-only. The checked security-definer RPCs are executable by `service_role`, not by `anon` or `authenticated`.
-- Private Realtime SELECT policies restrict the Admin broadcast to active Owners and Member broadcasts to an active Member's own non-revoked device topic.
-- Current database records: 2 profiles, 1 active Owner, 1 active Member, 0 devices, 0 repair tools, 0 published versions, 0 repair runs, and 0 admin audit events.
+The APK artifact is a debug build using an ephemeral debug keystore. It is not a signed production release APK/AAB.
 
-### Account boundary
-- Existing verified Owner profile: role `owner`, status `active`.
-- Existing verified Member profile: role `member`, status `active`.
-- These identities and roles must remain unchanged. The Member account must never be promoted or used as an Owner fallback.
-- The Owner's successful PIN login has not yet been verified against the live website. Do not treat an active profile as proof of a successful session.
+## Production configuration still required
 
-## Integration changes verified 11 November 2026
+- [ ] Establish the final production Render Web Service and record its canonical HTTPS URL; the checked-in render.yaml defines only the Free preview service.
+- [ ] Verify production Render TLS/HTTPS, health, owner sign-in and exact environment configuration.
+- [ ] Generate a real RSA-3072 key pair. Add only the PKCS#8 private key directly to Supabase Edge Function Secrets as RECIPE_SIGNING_PRIVATE_KEY_PEM; configure the matching X.509 public PEM in the Android release build. The checked-in public-key value remains a placeholder.
+- [ ] Configure the protected GitHub supabase-production environment with a required reviewer, secrets SUPABASE_ACCESS_TOKEN and SUPABASE_DB_PASSWORD, and variable ADMIN_ORIGIN.
+- [ ] Verify the private signing secret exists in Supabase before deployment without logging its value.
+- [ ] Configure the Admin host's server-only `ADMIN_OWNER_EMAIL` value and verify it identifies the existing active Owner Auth user.
+- [ ] Set the existing Owner Supabase Auth password to a random 8–12 digit PIN using Supabase Auth administration; never commit or expose the PIN.
+- [ ] Configure and verify production SMTP, sender-domain SPF/DKIM/DMARC and inbox delivery for Android Member OTP and Owner-issued member invitations; this does not affect Owner PIN sign-in.
+- [ ] Verify the existing Owner Auth account, set `ADMIN_OWNER_EMAIL` server-side, and set the Owner PIN as that account's Supabase Auth password. New profiles intentionally default to Member.
+- [ ] Apply the pending migrations in order: `20261106170418_private_realtime_catalog_broadcast.sql`, `20261106170438_backend_report_idempotency_and_atomic_catalog.sql`, `20261106170450_transactional_admin_mutations_audit.sql`, and `20261106170509_atomic_member_catalog_and_device_registration.sql`.
+- [ ] Deploy all 15 latest Edge Functions with JWT verification enabled, including the run-idempotent report, atomic catalog/device RPC clients and owner-checked transactional admin functions.
+- [ ] Disable Supabase Realtime Allow public access and verify private realtime.messages RLS against owner/member/own-device/revoked-device cases.
+- [ ] Deploy the PR-branch Edge Function updates with JWT verification enabled through the protected workflow.
+- [ ] Verify production database migration history, function deployment status and RLS policy behavior after deployment.
 
-### Android Member app
-- [Android PR #27](https://github.com/mahimahfud-ui/Mahi-Repair/pull/27) was merged to `main` as `c6c495aeac2058055ba88ca5b761914c69a300be`.
-- The Android app no longer contains an Owner Admin screen, route, Settings entry or privileged Owner API client. Owner management remains in the separate Admin repository.
-- Android CI, Backend CI and the legacy Admin scaffold CI passed for the PR head. Android unit tests and the debug APK assembly/upload completed successfully.
-- A 24 MB debug APK artifact was produced. It uses an ephemeral CI debug keystore; no production release-signed APK/AAB has been produced or verified.
+## End-to-end acceptance tests still required
 
-### Standalone Owner Console
-- A new Render Free service was created from this repository's `main` branch; the legacy `mahi-repair-admin-preview` service still points to the Android repository's old embedded Admin directory and is not the canonical Owner Console.
-- The canonical Admin URL is `https://mahi-repair-admin-yy7c.onrender.com`.
-- Render build log confirms the Next.js production build, TypeScript check and server startup completed; Render reports the service LIVE.
-- The Owner Console and Android app use the same Supabase project. Owner PIN and Member ID/PIN flows require end-to-end verification after deployment.
+- [ ] Owner PIN login on the production Render origin; verify Member and suspended accounts are rejected.
+- [ ] Invite a member as owner; deliver and complete the member OTP flow.
+- [ ] Register the Android device and verify ownership binding and duplicate registration behavior.
+- [ ] Create a tool, validate its recipe, publish it and verify the committed immutable version in Supabase.
+- [ ] Verify private per-device Android Realtime event delivery and the Owner-only Admin channel; ensure every event contains only an opaque event ID and triggers a fresh authorized fetch/render.
+- [ ] Install a release-signed APK on a physical Android device and sign in as the invited member.
+- [ ] Verify the full catalogue, detached RSA signature and exact canonical UTF-8 payload before parsing or execution.
+- [ ] Execute each supported native diagnostic action with valid/invalid parameters and permission/confirmation cases.
+- [ ] Submit a repair report and verify the persisted report in the Admin Panel; replay the exact same `run_id` and confirm duplicate success, then alter content/reuse from a second identity and confirm conflict.
+- [ ] Disable/unpublish a tool and verify the server refuses fresh retrieval/execution.
+- [ ] Revoke a device and verify server-side authorization is denied even if the client retains cached data.
+- [ ] Test foreground connection, background recovery, internet interruption/reconnect, expired JWT, rotated refresh token, duplicate/missed events, suspended member and multiple devices.
+- [ ] Test offline mode: cached display may be available according to product policy, but no new server authorization or execution may be inferred while disconnected; revalidate online before execution.
+- [ ] Establish signing-key rotation/revocation and secure backup procedure.
+- [ ] Complete monitoring/alerting, backup/restore rehearsal, telemetry privacy/retention/deletion policy and operational recovery runbook.
 
-### Member credential issuance
-- Supabase `admin-invite-member` is active at version 6 and still requires JWT verification.
-- Its canonical Owner Console origin is fixed to the generated Render hostname. [Admin PR #11](https://github.com/mahimahfud-ui/Mahi-Repair-Admin/pull/11) merged to `main` as `d6879d7cb0c5a2d939ffce0632d02c61c562e49f`; the shared CORS/redirect helper and regression tests reject the retired host and untrusted origins.
-- Member creation and PIN reset are Owner-only server operations. Member login never accepts an email and is rate-limited per client and Member ID.
-- Apply the new `member_code` migration before deploying the Admin Console and credential Edge Functions. Issue one Member ID/PIN from the Owner Console and verify that sign-in creates a normal Supabase session.
+## Security acceptance boundaries
 
-## Remaining production blockers
-
-### 1. Signing-key secret and signature compatibility
-- The Supabase Edge Function source requires `RECIPE_SIGNING_PRIVATE_KEY_PEM` to sign published tool releases.
-- The Android client verifies signatures using the public key in its build configuration.
-- The connected Supabase tools do not expose Edge Function secret values or allow us to verify a public/private key match. Therefore the presence, format, and match of the production private signing key are **unverified**.
-- Before publishing any tool, securely verify that the deployed Edge Function secret is an RSA-3072 PKCS#8 private key matching the Android X.509 public key. Never print either private material or secrets in CI logs.
-- Until this is proven, do not publish or deliver a signed repair recipe.
-
-### 2. Owner PIN and Member ID/PIN authentication
-- Owner PIN authentication uses the existing Owner Auth account and a server-only 8–12 digit PIN. The PIN itself has not been tested or changed in this readiness pass.
-- A successful Owner browser login and Owner-only route access still need a normal, user-initiated verification.
-- Email invitations and OTP login have been removed from the supported authentication flow. Verify Member ID/PIN sign-in and ensure no login request calls Supabase email OTP.
-- Supabase Security Advisor currently warns that leaked-password protection is disabled. Enable it in Supabase Auth security settings and verify the resulting status.
-- Supabase/Render Auth and request telemetry is incomplete; verify real credential sign-in, login throttling and authorization results from device tests.
-
-### 3. Android physical-device acceptance
-- Install a release-signed build on a real Android device; debug CI output is not a production release.
-- Sign in with a real invited Member account, register a server-issued device, and verify the device is associated with the correct Member.
-- Create and validate a repair tool, publish a version only after the signer-key match is verified, and confirm the Android device receives and verifies the signed payload.
-- Execute safe supported native actions, complete a repair run, and verify the report is persisted and visible in the Admin panel.
-- Verify duplicate report idempotency, unpublish/disable behavior, device revocation, offline/reconnect handling, refresh-token rotation, and private Realtime delivery.
-- No physical-device end-to-end test has been recorded. Current production data contains no registered device, tool, published version or repair run.
-
-### 4. Optional device telemetry and remote support API
-- The Android device-intelligence client and Remote Support service use `MAHI_API_BASE_URL`.
-- No Render service in the connected workspaces deploys the standalone Mahi Repair Express API.
-- The current standalone Express repository backend exports a `MemoryStagingDb` that persists to a local JSON file and seeds demo Owner/Member/device records. It is not a safe production datastore and must not be deployed as-is, especially to ephemeral hosting.
-- Keep these optional features disabled until the API is redesigned around durable, authenticated Supabase storage, CORS is restricted, rate limits are shared/durable, and the full device/remote-session lifecycle is tested. Do not point `MAHI_API_BASE_URL` at the Admin website.
-
-### 5. Operational readiness
-- Enable leaked-password protection.
-- Confirm Supabase Auth URL/redirect allowlists and SMTP/SPF/DKIM/DMARC using the correct production domain without sending unsolicited tests.
-- Confirm private Realtime is globally configured as intended; current table-level RLS policies are restrictive, but the project-level public-access toggle was not exposed by the connected tooling.
-- Add structured, privacy-safe Render request logs for login, callback, Owner authorization decisions and API 4xx/5xx outcomes.
-- Complete backup/restore rehearsal, monitoring/alerts, key rotation/revocation, and incident-recovery runbook.
+- CI source/APK scans are marker scans for known privileged-secret patterns; they do not replace a complete secret review or runtime inspection.
+- Deno type checks and contract tests do not prove production Edge Function deployment or database RLS behavior.
+- A private Realtime subscription is a notification channel only. Every catalogue fetch and execution must still be authorized by the server for the active member and non-revoked device.
+- Revocation cannot be observed by an offline device until it reconnects. The server must deny the next online fetch/run request.
+- The APK artifact currently available from CI is debug-signed with an ephemeral key. No release signing proof is recorded.
+- The Render Free preview is not the production Admin Panel service.
+- A remote recipe may only combine capabilities already compiled into the installed APK. Adding Kotlin behavior or an Android permission requires an app update.
 
 ## Release decision
 
-**NOT FULLY PRODUCTION READY.**
-
-Verified: the Admin service is LIVE, production Supabase schema/migrations/functions are provisioned, database RLS and account roles are intact, and the Admin hardening PR CI passes.
-
-Blocked/unverified: actual Owner PIN sign-in, Member ID/PIN login, production RSA private/public-key match, production release APK/AAB signing, real device enrolment, a published signed tool, repair-report end-to-end flow, physical-device acceptance, and optional remote-support API.
-
-Do not merge release code, publish a repair tool, or announce full production readiness until these gates have concrete evidence.
+**NOT PRODUCTION READY.** Admin CI passes on the updated Owner PIN head, but production deployment/configuration, PIN bootstrap, real owner/member/device workflow, signed release artifact, live Realtime/RLS authorization tests and physical-device acceptance remain unverified. Do not merge PR #1 or announce production availability until every required gate above has evidence.

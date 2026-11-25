@@ -8,28 +8,7 @@ max_rows = 1000
 
 [auth]
 enabled = true
-site_url = "https://mahi-repair-admin-yy7c.onrender.com"
-additional_redirect_urls = ["https://mahi-repair-admin-yy7c.onrender.com/**"]
+site_url = "http://localhost:3000"
 
 [functions.admin-manage-tool-state]
-verify_jwt = true
-
-
-[functions.admin-create-member]
-verify_jwt = true
-
-[functions.admin-reset-member-pin]
-verify_jwt = true
-
-[functions.member-login]
-verify_jwt = false
-
-
-[functions.admin-publish-app-update]
-verify_jwt = true
-
-[functions.get-app-update-manifest]
-verify_jwt = true
-
-[functions.get-app-update-asset-url]
 verify_jwt = true
