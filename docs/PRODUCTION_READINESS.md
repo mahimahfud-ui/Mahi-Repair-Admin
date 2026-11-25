@@ -6,7 +6,7 @@ This document separates verified production state from work that is still blocke
 
 ### Admin web service
 - Canonical Render service: `mahi-repair-admin` (Singapore, Node.js 22.23.4, Free plan).
-- Actual assigned public origin: `https://mahi-repair-admin-yy7c.onrender.com` (the shorter `mahi-repair-admin.onrender.com` hostname was already reserved by Render).
+- Actual assigned public origin: `https://mahi-repair-admin-yy7c.onrender.com`; the shorter hostname does not resolve to this service.
 - Connected Git repository/branch: `mahimahfud-ui/Mahi-Repair-Admin` / `main`; deployed commit: `f4bc174cc2152fc88d92f0e62b24b981e97f9098`.
 - Deployment `dep-dbq99spkl3bs73es29jg` completed successfully and Render reports the service as LIVE.
 - The app exposes `/api/health` as a no-store configuration-readiness endpoint: `status=configured` and HTTP 200 only when required values are present; otherwise `status=misconfigured` and HTTP 503. A live fetch on 11 November 2026 returned `ready=true` with Supabase URL, publishable-key format and Owner identity checks all true. A live fetch of `/login` also confirmed the PIN login page loads. This does not prove a successful Supabase database request or Owner PIN authentication.

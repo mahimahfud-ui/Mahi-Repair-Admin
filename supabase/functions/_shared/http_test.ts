@@ -78,7 +78,7 @@ Deno.test('CORS defaults to the fixed production Admin origin when no override i
     throw new Error('The canonical production Admin origin was not accepted as the default');
   }
   if (isAllowedCorsOrigin('https://mahi-repair-admin.onrender.com', undefined)) {
-    throw new Error('The retired Render origin was accepted as the production default');
+    throw new Error('The unassigned short Render hostname was accepted as the production default');
   }
   if (isAllowedCorsOrigin('https://untrusted.example.com', undefined)) {
     throw new Error('An untrusted origin was accepted when using the production default');
