@@ -2,27 +2,23 @@ import { ConsoleShell } from '@/components/console-shell';
 import { requireOwner } from '@/lib/auth/require-owner';
 import { formatDate } from '@/lib/utils';
 import { Smartphone } from 'lucide-react';
-import { setMemberStatus, setDeviceRevoked } from '@/app/actions';
-import { MemberCredentialCreateForm, MemberCredentialResetButton } from '@/components/member-credentials-manager';
+import { MembersAccessManager } from '@/components/members-access-manager';
+import { setDeviceRevoked } from '@/app/actions';
 
 export const dynamic = 'force-dynamic';
 
 export default async function MembersPage() {
   const { supabase } = await requireOwner();
   const [{ data: members, error }, { data: devices, error: deviceError }] = await Promise.all([
-    supabase.from('profiles').select('id,member_code,display_name,role,status,created_at').eq('role', 'member').order('created_at', { ascending: false }),
+    supabase.from('profiles').select('id,member_code,display_name,status,created_at').eq('role', 'member').order('created_at', { ascending: false }),
     supabase.from('devices').select('id,user_id,device_label,app_version,android_version,android_api,last_seen_at,revoked_at').order('last_seen_at', { ascending: false }),
   ]);
   const memberById = new Map((members ?? []).map((member) => [member.id, member]));
 
   return (
-    <ConsoleShell active="/members" title="Members & Devices" subtitle="Issue secure Member IDs and 12-digit PINs, then manage account/device access">
-      <MemberCredentialCreateForm />
-
-      <div className="panel overflow-hidden">
-        <div className="border-b border-[#252830] p-4 text-sm font-medium">Member accounts · {members?.length ?? 0}</div>
-        {error ? <p className="p-4 text-sm text-red-300">{error.message}</p> : <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="text-[10px] muted"><tr><th className="p-4 text-left">MEMBER</th><th className="p-4 text-left">MEMBER ID</th><th className="p-4 text-left">STATUS</th><th className="p-4 text-left">CREATED</th><th className="p-4 text-left">ACCESS / CREDENTIALS</th></tr></thead><tbody className="divide-y divide-[#252830]">{(members ?? []).map((member) => <tr key={member.id}><td className="p-4"><div className="text-xs">{member.display_name || 'Member'}</div></td><td className="p-4 font-mono text-xs">{member.member_code || <span className="muted">Not assigned</span>}</td><td className="p-4 text-xs">{member.status}</td><td className="p-4 text-xs muted">{formatDate(member.created_at)}</td><td className="p-4"><div className="flex flex-wrap items-center gap-2"><form action={setMemberStatus} className="flex gap-2"><input type="hidden" name="user_id" value={member.id} /><select name="status" defaultValue={member.status} className="field py-2 text-xs"><option value="active">Active</option><option value="suspended">Suspended</option><option value="revoked">Revoked</option></select><button className="btn btn-secondary py-2 text-xs">Save</button></form><MemberCredentialResetButton userId={member.id} hasMemberCode={Boolean(member.member_code)} /></div></td></tr>)}</tbody></table></div>}
-      </div>
+    <ConsoleShell active="/members" title="Members & Devices" subtitle="Issue Member IDs and 12-digit PINs, then manage account/device access">
+      {error && <p className="panel mb-4 p-4 text-sm text-red-300">{error.message}</p>}
+      <MembersAccessManager members={members ?? []} />
 
       <div className="panel mt-4 overflow-hidden">
         <div className="flex items-center gap-2 border-b border-[#252830] p-4 text-sm font-medium"><Smartphone size={15} className="text-red-400" /> Registered devices · {devices?.length ?? 0}</div>
