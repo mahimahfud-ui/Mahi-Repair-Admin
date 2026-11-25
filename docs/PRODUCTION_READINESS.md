@@ -6,7 +6,7 @@ This checklist separates code/CI evidence from checks that must be performed aga
 
 - [x] Separate native Android client, private Next.js Admin Panel and Supabase backend.
 - [x] Minimal Android home with one RUN REPAIR action and a published-tool picker after the user taps it.
-- [x] Invite-only email OTP auth implementation with account creation disabled.
+- [x] Owner-controlled Member ID + 12-digit PIN sign-in flow; the Admin must create or issue the Member credentials before Android sign-in.
 - [x] Owner login UI accepts only an 8–12 digit numeric PIN; no Owner email/OTP/Magic Link request is exposed in the browser.
 - [x] Server action authenticates the PIN against the existing Owner Supabase Auth account using server-only `ADMIN_OWNER_EMAIL`, then requires an active Owner profile and signs out any non-Owner session.
 - [x] PIN validation and server-only Owner Auth identifier validation have unit-test coverage; rate-limited password sign-in receives safe user-facing feedback.
@@ -42,8 +42,8 @@ The APK artifact is a debug build using an ephemeral debug keystore. It is not a
 
 ## Production configuration still required
 
-- [ ] Establish the final production Render Web Service and record its canonical HTTPS URL; the checked-in render.yaml defines only the Free preview service.
-- [ ] Verify production Render TLS/HTTPS, health, owner sign-in and exact environment configuration.
+- [x] Verify the existing Render Web Service and its canonical HTTPS origin: `https://mahi-repair-admin-yy7c.onrender.com` (the actual generated Render host).
+- [ ] Re-check production Render TLS/HTTPS, health, Owner PIN sign-in and exact environment configuration after the latest main commit deploys.
 - [ ] Generate a real RSA-3072 key pair. Add only the PKCS#8 private key directly to Supabase Edge Function Secrets as RECIPE_SIGNING_PRIVATE_KEY_PEM; configure the matching X.509 public PEM in the Android release build. The checked-in public-key value remains a placeholder.
 - [ ] Configure the protected GitHub supabase-production environment with a required reviewer, secrets SUPABASE_ACCESS_TOKEN and SUPABASE_DB_PASSWORD, and variable ADMIN_ORIGIN.
 - [ ] Verify the private signing secret exists in Supabase before deployment without logging its value.
