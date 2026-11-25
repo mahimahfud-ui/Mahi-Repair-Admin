@@ -2,7 +2,7 @@
 
 import { type FormEvent, useState } from 'react';
 import { KeyRound, Copy, RefreshCw, UserPlus } from 'lucide-react';
-import { createMemberAccess, setMemberStatus } from '@/app/actions';
+import { createMemberAccess, resetMemberPin, setMemberStatus } from '@/app/actions';
 
 type MemberRow = {
   id: string;
@@ -35,6 +35,17 @@ export function MembersAccessManager({ members }: { members: MemberRow[] }) {
   }
 
 
+
+  async function reset(userId: string) {
+    if (busy) return;
+    setBusy(true); setError(''); setCredentials(null);
+    try {
+      const result = await resetMemberPin(userId);
+      setCredentials(result);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not reset member credentials.');
+    } finally { setBusy(false); }
+  }
 
   async function copy(value: string, label: string) {
     try { await navigator.clipboard.writeText(value); setCopied(label); }
@@ -79,7 +90,7 @@ export function MembersAccessManager({ members }: { members: MemberRow[] }) {
                 <td className="p-3 text-xs muted">{member.created_at.slice(0, 10)}</td>
                 <td className="p-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    <button type="button" className="btn btn-secondary py-2 text-[10px]" disabled title={member.member_code ? "Member PIN reset is not enabled yet." : "Legacy email-only account; its existing history is preserved."}><RefreshCw size={12} /> {member.member_code ? 'PIN reset pending' : 'Legacy account'}</button>
+                    <button type="button" className="btn btn-secondary py-2 text-[10px]" disabled={busy} onClick={() => void reset(member.id)}><RefreshCw size={12} /> {member.member_code ? 'Reset PIN' : 'Issue Member ID + PIN'}</button>
                     <form action={setMemberStatus} className="flex gap-1">
                       <input type="hidden" name="user_id" value={member.id} />
                       <select name="status" defaultValue={member.status} className="field py-2 text-[10px]"><option value="active">Active</option><option value="suspended">Suspended</option><option value="revoked">Revoked</option></select>
