@@ -11,7 +11,7 @@ This document is the current operational reference for the two-repository Supaba
 |---|---|
 | Android Member application | [mahimahfud-ui/Mahi-Repair](https://github.com/mahimahfud-ui/Mahi-Repair) |
 | Separate Owner website | [mahimahfud-ui/Mahi-Repair-Admin](https://github.com/mahimahfud-ui/Mahi-Repair-Admin) |
-| Owner login | https://mahi-repair-admin-yy7c.onrender.com/login |
+| Owner login | https://mahi-repair-admin.onrender.com/login |
 | Shared backend | Supabase project `shwqsljicmhflnvjqjah` |
 | Supabase region | `ap-south-1` |
 | Admin hosting definition | This repository's root `render.yaml`, branch `main` |
@@ -114,8 +114,8 @@ The `/api/health` endpoint checks configuration shape only. It is not a successf
 
 ### Gate B — Member ID/PIN login and device authorization
 
-- Confirm live Supabase Auth Site URL is `https://mahi-repair-admin-yy7c.onrender.com`.
-- Confirm Additional Redirect URLs includes `https://mahi-repair-admin-yy7c.onrender.com/**`.
+- Confirm live Supabase Auth Site URL is `https://mahi-repair-admin.onrender.com`.
+- Confirm Additional Redirect URLs includes `https://mahi-repair-admin.onrender.com/**`.
 - Apply the Member ID migration and deploy `admin-create-member`, `admin-reset-member-pin` and `member-login` Edge Functions.
 - Confirm Member credential issuance is restricted to an active Owner session and never returns the internal Auth identity.
 - Complete one Android Member ID + 12-digit PIN login; verify a normal Supabase session, device registration, and suspended-member rejection.
