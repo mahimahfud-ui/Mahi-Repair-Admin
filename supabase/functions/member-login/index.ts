@@ -74,7 +74,8 @@ Deno.serve(async (req) => {
       refresh_token: session.refresh_token,
       user: {
         id: profile.id,
-        email: internalEmail,
+        // The internal Auth email is resolved only within this Edge Function.
+        // The Android client identifies the session with Member ID instead.
         app_metadata: { role: 'member' },
       },
     });
