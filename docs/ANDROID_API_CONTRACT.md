@@ -19,6 +19,10 @@ All requests use HTTPS and `Authorization: Bearer <Supabase access token>`. Andr
 
 Verify the signature over the UTF-8 bytes of `signed_payload` using the embedded RSA public key and SHA-256 / RSASSA-PKCS1-v1_5. **Do not parse and re-serialize before verifying.** Only after verification succeeds, parse the JSON, validate `schemaVersion`, validate every action ID and parameter on-device, then execute actions implemented inside the APK. Reject unknown IDs, unsupported schema versions, invalid parameters, expired/revoked access and incompatible app/API versions. Never execute payload code.
 
+## Member sign-in
+
+`POST /member-login` is intentionally configured with gateway JWT verification disabled because a Member has not authenticated yet. The function validates the submitted `member_code` (`MR-XXXXXXXX`) and 12-digit `pin`, applies IP/code rate limits, resolves the internal Auth identity server-side and returns a normal Supabase access/refresh-token session. The Android client sends only `{ "member_code": "MR-XXXXXXXX", "pin": "000000000000" }`; it must never collect or submit an email address. The returned Member session is then used for all protected endpoints.
+
 ## Member endpoints
 
 `register-device` request: `{ "device_label": "My phone", "app_version": "1.0.0", "android_version": "15", "android_api": 35 }`. Persist the returned `device_id` in app-private storage and send it in repair-run submissions. On later app starts, include that same ID to update last-seen/app metadata. A revoked device cannot re-register using its old ID.
@@ -57,7 +61,9 @@ Never include personal files, messages, credentials, photos or unrelated device 
 
 All admin endpoints require an active owner profile. They are not callable by member accounts:
 
-- `admin-invite-member`: `{ "email": "member@example.com", "redirect_to": "https://admin.example.com/auth/callback" }`
+- `admin-create-member`: `{ "display_name": "Member Name" }`; returns a one-time Member ID and 12-digit PIN.
+- `admin-reset-member-pin`: `{ "user_id": "uuid" }`; assigns a Member ID to a legacy account when needed, resets its PIN and returns the new credentials once.
+- `admin-invite-member` is not part of the Android Member ID/PIN provisioning path.
 - `admin-manage-member`: `{ "user_id": "uuid", "status": "active|suspended|revoked" }`
 - `admin-upsert-tool`: `{ "id"?: "uuid", "name": "...", "slug": "...", "category": "apps", "description": "...", "draft_recipe": {} }`
 - `admin-publish-tool`: `{ "tool_id": "uuid", "changelog": "..." }`; optional `source_version_id` republishes a previous payload as a **new** signed version.
