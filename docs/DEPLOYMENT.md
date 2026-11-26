@@ -65,7 +65,7 @@ npm run build
 npm run start
 ~~~
 
-The hosting provider must use Node.js 22.23.4, install from the root package-lock.json, run npm ci, build with npm run build, and start with npm run start. Configure its assigned port through the platform's standard PORT environment variable. The current Render Web Service is `mahi-repair-admin`, tracks branch `integration/connect-shared-supabase`, and serves the preview at https://mahi-repair-admin.onrender.com. The service is configured outside this repository; CI does not deploy Supabase changes.
+The hosting provider must use Node.js 22.23.4, install from the root package-lock.json, run npm ci, build with npm run build, and start with npm run start. Configure its assigned port through the platform's standard PORT environment variable. The current Render Web Service is `mahi-repair-admin`, tracks branch `main`, and serves https://mahi-repair-admin.onrender.com. The Render service is configured outside this repository; CI does not deploy Supabase changes.
 
 ## 4. Supabase project and Owner PIN authentication — manual
 
@@ -81,7 +81,7 @@ The existing project reference is `shwqsljicmhflnvjqjah`. Confirm it is the inte
 
 The Owner login UI has no email field, Magic Link button, OTP request or email-sending cooldown. It uses the normal Supabase Auth password session for the existing Owner account; Owner authorization is never inferred from the PIN alone.
 
-Member onboarding is separate: the Owner's `admin-invite-member` operation sends an invitation email, and Android Members use the existing six-digit Supabase Auth OTP flow. Configure and verify a production custom SMTP provider, sender-domain SPF/DKIM/DMARC and inbox delivery only for those member email flows. The Owner PIN login does not depend on SMTP.
+Member onboarding is separate: the Owner's `admin-invite-member` operation sends an invitation email, and Android Members use the existing six-digit Supabase Auth OTP flow. Both flows are delivered through the Supabase Send Email Auth Hook. The hook uses Resend as the primary provider and Brevo as the fallback; when the hook is enabled, Supabase's built-in SMTP delivery is not used. Verify the sender domain with SPF/DKIM (and DMARC policy) at both providers. The Owner PIN login does not send an Auth email and does not depend on this hook.
 
 ## 5. PostgreSQL migrations — manual, separately approved
 
@@ -95,7 +95,11 @@ The checked-in migrations are applied in timestamp order:
 - 20261106170450_transactional_admin_mutations_audit.sql
 - 20261106170509_atomic_member_catalog_and_device_registration.sql
 
-Review the SQL and target project before applying anything. The following is a manual operator procedure, not an automated GitHub workflow:
+Review the SQL and target project before applying anything. The production workflow in `.github/workflows/supabase-production.yml` is manual-only and requires an explicit `confirm_production=yes` input plus approval of the protected GitHub environment `supabase-production`. It uses two separate dispatches so a preview cannot auto-apply:
+1. **Preview only:** dispatch from `main` with `apply_changes=false` (default) and `deploy_send_email_hook=false`. It links the exact commit, checks the signing-secret name, lists remote migration history and runs `supabase db push --dry-run --remote`. It performs no production mutation. Record the exact workflow source commit SHA and inspect the complete migration preview.
+2. **Apply:** dispatch again from the same `main` commit with `apply_changes=true`, paste that exact preview SHA in `previewed_commit_sha`, and request the protected environment approval. If `main` changes between the two runs, the SHA comparison fails and a new preview is required. Only then does it set `ADMIN_ORIGIN`, apply migrations and deploy the 15 JWT-verified Member/Owner functions. Set `deploy_send_email_hook=true` only when the four hook/provider secrets are ready and the hook function has been reviewed.
+
+For unattended runs, the workflow supplies `SUPABASE_DB_PASSWORD` as an environment variable. Supabase CLI v3 reads it during `supabase link`; do not pass the deprecated `link --password` flag. The same manual procedure remains available for operators who prefer the Supabase CLI:
 
 ~~~bash
 supabase db push --dry-run
@@ -129,9 +133,9 @@ openssl pkey -in recipe-signing-private.pem -pubout -out recipe-signing-public.p
 
 Paste the private key directly into Supabase Edge Function Secrets. Keep it out of GitHub, Render, browser variables and Android. Only the matching public key may be configured in the Android release build. The repository's placeholder public key is not a production key.
 
-## 7. Deploy Edge Functions — manual
+## 7. Configure the Send Email Auth Hook and deploy Edge Functions — manual
 
-There are 15 Edge Function directories in supabase/functions/:
+There are 16 Edge Function directories in supabase/functions/:
 
 ~~~text
 admin-assign-tool
@@ -149,9 +153,10 @@ get-my-repair-tools
 get-signed-repair-tool
 register-device
 submit-repair-run
+send-auth-email
 ~~~
 
-After the reviewed migrations and required secrets are in place, an authorized operator can deploy them manually:
+After the reviewed migrations and required secrets are in place, deploy the 15 member/Owner functions with JWT verification enabled:
 
 ~~~bash
 for function in \
@@ -161,13 +166,29 @@ for function in \
   admin-upsert-tool get-admin-analytics get-my-repair-tools \
   get-signed-repair-tool register-device submit-repair-run
 do
-  supabase functions deploy "$function" --project-ref shwqsljicmhflnvjqjah
+  supabase functions deploy "$function" --project-ref shwqsljicmhflnvjqjah --yes
 done
 ~~~
 
-Keep JWT verification enabled (the Supabase CLI default); do not pass --no-verify-jwt. Every function independently validates the Supabase user and active Owner/member role before performing its operation. The service-role client is created only inside Edge Function code.
+Keep JWT verification enabled (the Supabase CLI default) for all 15 member/Owner functions. The Send Email Auth Hook is the single exception: it is called by Supabase Auth and authenticates requests with Standard Webhooks HMAC signatures, so deploy it with JWT verification disabled:
 
-Automation status: this repository currently has no .github/workflows/supabase-functions-deploy.yml. No Supabase migration or Edge Function deployment is performed automatically by the checked-in GitHub Actions workflow. Deployment steps in this section are manual. Do not treat a green CI run as a Supabase deployment.
+~~~bash
+supabase functions deploy send-auth-email --project-ref shwqsljicmhflnvjqjah --no-verify-jwt --yes
+~~~
+
+The checked-in `supabase/config.toml` also declares `[functions.send-auth-email]` with `verify_jwt = false`. Do not disable JWT verification on any other function. The send-auth-email handler must reject unsigned/invalid hook events before calling either provider. The remaining functions independently validate the Supabase user and active Owner/member role before privileged operations. The service-role client is created only inside those Edge Functions.
+
+Before enabling the Auth Hook, validate provider delivery separately from the Auth flow. Deploy the function with the hook still disabled, then send a synthetic **signed Standard Webhooks** event directly to the function URL using a test recipient inbox you control. Confirm Resend delivers the message. In a non-production test deployment, force a simulated Resend failure and confirm the Brevo fallback delivers; do not invalidate the production Resend key to test fallback.
+
+After the signed provider smoke test succeeds, open Supabase Dashboard → Authentication → Hooks → Send Email. Create or enable the HTTP hook pointing to:
+
+`https://shwqsljicmhflnvjqjah.supabase.co/functions/v1/send-auth-email`
+
+Generate the hook secret in that screen and keep it disabled. Save the complete `v1,whsec_...` value in both the GitHub `supabase-production` Environment secret and Supabase Edge Function Secret `SEND_EMAIL_HOOK_SECRET`; the values must match exactly. Confirm the project Email Provider is enabled. Then enable the Auth Hook and perform real end-to-end tests: an Owner invitation from the production Admin Console and an Android Member six-digit OTP. Both must land in the target inbox and successfully complete their authentication flow. When enabled, Supabase Auth routes auth emails through the hook instead of SMTP.
+
+Protected deployment workflow: `.github/workflows/supabase-production.yml`. It is triggered only with `workflow_dispatch` from `main`, requires an explicit confirmation input, and uses the protected GitHub Environment `supabase-production`. The workflow verifies the existing `RECIPE_SIGNING_PRIVATE_KEY_PEM` secret is present in Supabase without exposing its value, syncs the canonical `ADMIN_ORIGIN`, previews migration changes, applies approved migrations and deploys the 15 Member/Owner Edge Functions with JWT verification enabled. The Send Email Auth Hook is an explicit opt-in input and is deployed separately with JWT verification disabled only for that HMAC-authenticated endpoint.
+
+Before use, a repository administrator must create GitHub Settings → Environments → `supabase-production`, add at least one required reviewer, configure Environment secrets `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD`, and define the Environment variable `ADMIN_ORIGIN=https://mahi-repair-admin.onrender.com`. Preview-only runs also pass through this protected environment and require the same credentials, but do not alter production. The existing `RECIPE_SIGNING_PRIVATE_KEY_PEM` must be provisioned directly in Supabase Edge Function Secrets, not copied into GitHub. For optional hook deployment, also configure GitHub Environment secrets `SEND_EMAIL_HOOK_SECRET`, `RESEND_API_KEY`, `BREVO_API_KEY`, and `AUTH_EMAIL_FROM`. The Auth Hook must remain disabled in Supabase Dashboard until provider inbox tests pass. A green CI run does not deploy anything; only an approved manual workflow dispatch mutates production.
 
 ## 8. Website hosting — manual
 
@@ -183,7 +204,7 @@ Set these browser-safe environment variables in Render → `mahi-repair-admin` �
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `ADMIN_OWNER_EMAIL` — the existing Owner Auth identifier; server-only, never prefixed with `NEXT_PUBLIC_`
 
-Do not configure service-role credentials, the database password or the signing private key in the website host. Set Supabase Auth Site URL and Edge Function `ADMIN_ORIGIN` to the canonical Admin origin for member invitations. The Owner PIN login does not use an Auth callback URL. Configure Android's own Auth redirect/deep-link allowlist separately. The app deployment is automatic on updates to the configured branch; Supabase migrations, secrets and Edge Function deployments remain separate manual operations.
+Do not configure service-role credentials, the database password or the signing private key in the website host. Set the Supabase Auth Site URL and Edge Function `ADMIN_ORIGIN` to `https://mahi-repair-admin.onrender.com` (no trailing slash for `ADMIN_ORIGIN`). Add the Admin callback URL to the Auth redirect allowlist. Configure the Send Email Auth Hook separately as described above. The Owner PIN login does not use an Auth callback URL. Configure Android's own Auth redirect/deep-link allowlist separately. The app deployment is automatic on updates to the configured branch; Supabase migrations, secrets and Edge Function deployments remain separate manual operations.
 
 ## 9. Private Realtime and device authorization checks
 
@@ -206,4 +227,4 @@ Realtime messages contain no row data, PII, recipe payloads or signatures. They 
 
 A successful GitHub Actions run proves only that the code in the commit passed the automated checks. It does not prove live Owner authentication, SMTP delivery, database migration state, RLS in the target project, signing-key correctness, deployed Edge Function versions, public website health or physical Android-device behavior.
 
-Record the deployed commit SHA, project reference, hosting service/URL, manual migration history, Edge Function deployment result, key configuration verification and Owner/member/device acceptance results in the release record. No production deployment is implied by this guide or by CI.
+Record the deployed commit SHA, project reference, hosting service/URL, manual migration history, Edge Function deployment result, signing-key verification, Send Email Hook status, provider fallback test, and Owner/member/device acceptance results in the release record. No production deployment is implied by this guide or by CI.
