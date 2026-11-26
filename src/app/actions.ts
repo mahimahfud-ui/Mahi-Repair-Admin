@@ -6,7 +6,7 @@ import { RepairRecipeSchema } from '@/lib/recipe/catalog';
 import { requireOwner } from '@/lib/auth/require-owner';
 import { isValidOwnerAuthEmail, isValidOwnerPin } from '@/lib/auth/owner-pin';
 
-const ADMIN_FUNCTIONS = new Set(['admin-invite-member','admin-manage-member','admin-upsert-tool','admin-publish-tool','admin-disable-tool','admin-assign-tool','admin-save-validation','admin-delete-draft-tool','admin-manage-device','admin-manage-tool-state','get-admin-analytics']);
+const ADMIN_FUNCTIONS = new Set(['admin-invite-member','admin-publish-app-update','admin-manage-member','admin-upsert-tool','admin-publish-tool','admin-disable-tool','admin-assign-tool','admin-save-validation','admin-delete-draft-tool','admin-manage-device','admin-manage-tool-state','get-admin-analytics']);
 
 export type OwnerPinSignInResult =
   | { ok: false; reason: 'invalid' | 'rate_limited' | 'configuration' | 'failed' };
@@ -118,6 +118,55 @@ export async function deleteDraftTool(formData:FormData){
   const id=String(formData.get('tool_id')??'');
   const result = await invokeAdminFunction('admin-delete-draft-tool',{tool_id:id});
   revalidatePath('/tools');return result;
+}
+
+/**
+ * Owner-only publishing of an immutable signed Android update manifest.
+ * The Edge Function validates the manifest and performs server-side signing.
+ */
+export async function publishAppUpdate(formData: FormData) {
+  await requireOwner();
+
+  const channel = String(formData.get('channel') ?? 'stable');
+  const releaseNumber = Number(formData.get('release_number'));
+  const appVersionCode = Number(formData.get('app_version_code'));
+  const minSupportedAppVersionCode = Number(formData.get('min_supported_app_version_code'));
+  const appVersionName = String(formData.get('app_version_name') ?? '').trim();
+  const mandatory = String(formData.get('mandatory') ?? '') === 'on';
+  const releaseNotes = String(formData.get('release_notes') ?? '').trim();
+
+  if (!['stable', 'beta'].includes(channel)) throw new Error('Select a valid release channel.');
+  if (![releaseNumber, appVersionCode, minSupportedAppVersionCode].every((value) => Number.isSafeInteger(value) && value > 0)) {
+    throw new Error('Release and Android version codes must be positive integers.');
+  }
+  if (appVersionName.length < 1 || appVersionName.length > 40 || releaseNotes.length > 4000) {
+    throw new Error('Release metadata is invalid or too long.');
+  }
+
+  const parseJsonField = (name: string, fallback: unknown) => {
+    const raw = String(formData.get(name) ?? '');
+    if (!raw.trim()) return fallback;
+    try { return JSON.parse(raw) as unknown; }
+    catch { throw new Error(`${name.replaceAll('_', ' ')} must be valid JSON.`); }
+  };
+
+  const payload = {
+    channel,
+    releaseNumber,
+    appVersionCode,
+    appVersionName,
+    minSupportedAppVersionCode,
+    mandatory,
+    releaseNotes,
+    remoteConfig: parseJsonField('remote_config_json', {}),
+    packages: parseJsonField('packages_json', []),
+    nativeApk: parseJsonField('native_apk_json', null),
+  };
+
+  await invokeAdminFunction('admin-publish-app-update', payload);
+  revalidatePath('/updates');
+  revalidatePath('/');
+  redirect('/updates?published=1');
 }
 
 export async function setDeviceRevoked(formData:FormData){const deviceId=String(formData.get('device_id')??'');const revoked=String(formData.get('revoked')??'true')==='true';await invokeAdminFunction('admin-manage-device',{device_id:deviceId,revoked});revalidatePath('/members');}
