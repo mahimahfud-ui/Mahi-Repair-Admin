@@ -8,48 +8,65 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return preflight(req);
   try {
     const { user, admin } = await requireOwner(req);
-    await rateLimit(admin, `member-credential-reset:${user.id}`, 20, 3600);
+    await rateLimit(admin, `member-pin-reset:${user.id}`, 10, 3600);
 
     const parsed = Input.safeParse(await jsonBody(req));
-    if (!parsed.success) return respond(req, { error: { code: 'INVALID_MEMBER', issues: parsed.error.issues } }, 422);
-
-    const { data: member, error: lookupError } = await admin.from('profiles')
-      .select('id,role,status,display_name,member_code')
-      .eq('id', parsed.data.user_id)
-      .maybeSingle();
-    if (lookupError) throw lookupError;
-    if (!member || member.role !== 'member') {
-      return respond(req, { error: { code: 'MEMBER_NOT_FOUND', message: 'Member account not found.' } }, 404);
+    if (!parsed.success) {
+      return respond(req, { error: { code: 'INVALID_MEMBER', issues: parsed.error.issues } }, 422);
     }
 
-    let memberCode = member.member_code;
-    if (!isValidMemberCode(memberCode)) {
-      let assigned = false;
-      for (let attempt = 0; attempt < 4 && !assigned; attempt += 1) {
-        memberCode = generateMemberCode();
-        const { error } = await admin.from('profiles').update({ member_code: memberCode }).eq('id', member.id);
-        if (!error) assigned = true;
-        else if (!/duplicate|unique/i.test(error.message)) throw error;
+    const targetId = parsed.data.user_id;
+    const { data: profile, error: profileError } = await admin.from('profiles')
+      .select('id,role,status,display_name,member_code')
+      .eq('id', targetId)
+      .maybeSingle();
+    if (profileError) throw profileError;
+    if (!profile || profile.role !== 'member') {
+      throw Object.assign(new Error('Member not found.'), { status: 404 });
+    }
+
+    const { data: authResult, error: authLookupError } = await admin.auth.admin.getUserById(targetId);
+    if (authLookupError || !authResult.user) {
+      throw Object.assign(new Error('Member authentication record not found.'), { status: 404 });
+    }
+
+    let memberCode = isValidMemberCode(profile.member_code) ? profile.member_code : '';
+    if (!memberCode) {
+      for (let attempt = 0; attempt < 6 && !memberCode; attempt += 1) {
+        const candidate = generateMemberCode();
+        const { data: collision, error: collisionError } = await admin.from('profiles')
+          .select('id')
+          .eq('member_code', candidate)
+          .maybeSingle();
+        if (collisionError) throw collisionError;
+        if (!collision) memberCode = candidate;
       }
-      if (!assigned) throw new Error('Could not allocate a unique Member ID. Try again.');
+      if (!memberCode) throw new Error('Could not allocate a unique Member ID. Try again.');
     }
 
     const pin = generateMemberPin();
-    // Only the password changes on an existing Auth identity. No email is sent,
-    // changed, requested, or used as a user-facing identifier.
-    const { error: authError } = await admin.auth.admin.updateUserById(member.id, { password: pin });
-    if (authError) throw authError;
+    const { error: passwordError } = await admin.auth.admin.updateUserById(targetId, { password: pin });
+    if (passwordError) throw passwordError;
 
-    await audit(admin, user.id, 'member.credentials.reset', 'member', member.id, {
+    if (memberCode !== profile.member_code) {
+      const { error: codeError } = await admin.from('profiles')
+        .update({ member_code: memberCode })
+        .eq('id', targetId)
+        .eq('role', 'member');
+      if (codeError) throw codeError;
+    }
+
+    await audit(admin, user.id, 'member.credentials.reset', 'member', targetId, {
       member_code: memberCode,
       sign_in_method: 'member_id_pin',
+      status_unchanged: profile.status,
     });
 
     return respond(req, {
       data: {
         member_code: memberCode,
         pin,
-        display_name: member.display_name || 'Member',
+        display_name: profile.display_name || String(authResult.user.user_metadata?.name || 'Member'),
       },
     });
   } catch (error) {
