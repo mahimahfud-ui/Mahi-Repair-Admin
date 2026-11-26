@@ -6,7 +6,7 @@ import { RepairRecipeSchema } from '@/lib/recipe/catalog';
 import { requireOwner } from '@/lib/auth/require-owner';
 import { isValidOwnerAuthEmail, isValidOwnerPin } from '@/lib/auth/owner-pin';
 
-const ADMIN_FUNCTIONS = new Set(['admin-invite-member','admin-publish-app-update','admin-manage-member','admin-upsert-tool','admin-publish-tool','admin-disable-tool','admin-assign-tool','admin-save-validation','admin-delete-draft-tool','admin-manage-device','admin-manage-tool-state','get-admin-analytics']);
+const ADMIN_FUNCTIONS = new Set(['admin-invite-member','admin-publish-app-update','admin-manage-member','admin-upsert-tool','admin-publish-tool','admin-disable-tool','admin-assign-tool','admin-save-validation','admin-delete-draft-tool','admin-manage-device','admin-manage-tool-state','get-admin-analytics','admin-create-member' ,'admin-reset-member-pin' ]);
 
 export type OwnerPinSignInResult =
   | { ok: false; reason: 'invalid' | 'rate_limited' | 'configuration' | 'failed' };
@@ -167,6 +167,42 @@ export async function publishAppUpdate(formData: FormData) {
   revalidatePath('/updates');
   revalidatePath('/');
   redirect('/updates?published=1');
+}
+
+export type MemberCredentials = { member_code: string; pin: string; display_name: string };
+
+function readMemberCredentials(response: unknown): MemberCredentials {
+  if (typeof response !== 'object' || response === null || !('data' in response)) {
+    throw new Error('The server did not return Member credentials.');
+  }
+  const data = (response as { data?: unknown }).data;
+  if (typeof data !== 'object' || data === null) throw new Error('The server returned invalid Member credentials.');
+  const value = data as Record<string, unknown>;
+  if (typeof value.member_code !== 'string' || !/^MR-[A-HJ-NP-Z2-9]{8}$/.test(value.member_code) ||
+      typeof value.pin !== 'string' || !/^\d{12}$/.test(value.pin) ||
+      typeof value.display_name !== 'string') {
+    throw new Error('The server returned invalid Member credentials.');
+  }
+  return { member_code: value.member_code, pin: value.pin, display_name: value.display_name };
+}
+
+export async function createMemberAccess(displayName: string): Promise<MemberCredentials> {
+  const cleanName = String(displayName ?? '').trim();
+  if (cleanName.length < 2 || cleanName.length > 80) throw new Error('Enter a member name between 2 and 80 characters.');
+  const result = await invokeAdminFunction('admin-create-member', { display_name: cleanName });
+  const credentials = readMemberCredentials(result);
+  revalidatePath('/members');
+  return credentials;
+}
+
+export async function resetMemberPin(userId: string): Promise<MemberCredentials> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+    throw new Error('Invalid Member account.');
+  }
+  const result = await invokeAdminFunction('admin-reset-member-pin', { user_id: userId });
+  const credentials = readMemberCredentials(result);
+  revalidatePath('/members');
+  return credentials;
 }
 
 export async function setDeviceRevoked(formData:FormData){const deviceId=String(formData.get('device_id')??'');const revoked=String(formData.get('revoked')??'true')==='true';await invokeAdminFunction('admin-manage-device',{device_id:deviceId,revoked});revalidatePath('/members');}
