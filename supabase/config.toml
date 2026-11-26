@@ -12,3 +12,6 @@ site_url = "http://localhost:3000"
 
 [functions.admin-manage-tool-state]
 verify_jwt = true
+
+[functions.admin-reset-member-pin]
+verify_jwt = true
